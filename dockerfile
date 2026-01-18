@@ -28,9 +28,6 @@ COPY src/ ${MICROROS_WS}/src/
 COPY entrypoint.sh /ros/entrypoint.sh
 RUN chmod +x /ros/entrypoint.sh
 
-# Initialize rosdep
-RUN rosdep update || true
-
 # Expose micro-ROS agent port
 EXPOSE 8888/udp
 
