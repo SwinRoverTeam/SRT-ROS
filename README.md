@@ -13,7 +13,7 @@ or
 docker pull docker pull swinroverteam/swinrovermicroros:latest
 ```
 
-Then, run the file
+Then, run the setup shell
 ```
 ./run
 ```
