@@ -75,7 +75,7 @@ setup_micro_ros_agent() {
     if [ ! -d "src/micro_ros_setup" ]; then
         log_info "Cloning micro_ros_setup repository (branch: $MICRO_ROS_BRANCH)..."
         mkdir -p src
-        if !  git clone -b "$MICRO_ROS_BRANCH" https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup; then
+        if [ !  git clone -b "$MICRO_ROS_BRANCH" https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup ]; then
             error_exit "Failed to clone micro_ros_setup repository"
         fi
         log_info "Repository cloned successfully"
