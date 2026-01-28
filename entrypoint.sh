@@ -88,10 +88,10 @@ setup_micro_ros_agent() {
     # Source ROS setup
     log_info "Sourcing ROS $ROS_DISTRO setup..."
     printenv
-    if [ ! -f "/opt/ros/$ROS_DISTRO/setup.sh" ]; then
+    if [ ! -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
         error_exit "ROS $ROS_DISTRO setup file not found"
     fi
-    source "/opt/ros/$ROS_DISTRO/setup.sh"
+    source "/opt/ros/$ROS_DISTRO/setup.bash"
 
     # Update rosdep
     log_info "Updating rosdep..."
@@ -118,10 +118,10 @@ setup_micro_ros_agent() {
     # Create micro-ROS agent workspace if needed
     if [ ! -d "src/uros" ]; then
         log_info "Creating micro-ROS agent workspace..."
-        ros2 run micro_ros_setup create_agent_ws. sh 2>&1 || error_exit "Failed to create agent workspace"
+        ros2 run micro_ros_setup create_agent_ws.bash 2>&1 || error_exit "Failed to create agent workspace"
         
         log_info "Building micro-ROS agent..."
-        ros2 run micro_ros_setup build_agent.sh 2>&1 || error_exit "Failed to build agent"
+        ros2 run micro_ros_setup build_agent.bash 2>&1 || error_exit "Failed to build agent"
         
         # Re-source after build
         source install/local_setup.bash
@@ -208,7 +208,7 @@ main() {
         echo "source /opt/ros/$ROS_DISTRO/setup. bash" >> ~/.bashrc
     fi
     
-    if ! grep -q "source $WORKSPACE_DIR/install/local_setup. bash" ~/.bashrc 2>/dev/null; then
+    if ! grep -q "source $WORKSPACE_DIR/install/local_setup.bash" ~/.bashrc 2>/dev/null; then
         log_info "Adding workspace setup to ~/. bashrc..."
         echo "source $WORKSPACE_DIR/install/local_setup.bash" >> ~/. bashrc
     fi
