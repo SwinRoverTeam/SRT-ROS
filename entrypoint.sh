@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Exit on error, undefined variables, and pipe failures
-set -euo pipefail
+# Exit on error and pipe failures (not undefined variables due to ROS setup scripts)
+set -eo pipefail
 
 # Environment variables
 ROS_DISTRO="${ROS_DISTRO:-jazzy}"
@@ -176,7 +176,7 @@ launch_agent_only() {
     log_step "Launching micro-ROS agent only..."
     
     cd "$WORKSPACE_DIR" || error_exit "Failed to change to workspace"
-    source install/local_setup. bash
+    source install/local_setup.bash
     
     log_info "=========================================="
     log_info "Starting micro-ROS agent on UDP4 port $MICRO_ROS_PORT"
@@ -202,15 +202,15 @@ main() {
     
     # Update bashrc for persistence
     if ! grep -q "source /opt/ros/$ROS_DISTRO/setup.bash" ~/.bashrc 2>/dev/null; then
-        log_info "Adding ROS setup to ~/. bashrc..."
+        log_info "Adding ROS setup to ~/.bashrc..."
         echo "" >> ~/.bashrc
         echo "# ROS setup - added $(date '+%Y-%m-%d')" >> ~/.bashrc
-        echo "source /opt/ros/$ROS_DISTRO/setup. bash" >> ~/.bashrc
+        echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
     fi
     
     if ! grep -q "source $WORKSPACE_DIR/install/local_setup.bash" ~/.bashrc 2>/dev/null; then
-        log_info "Adding workspace setup to ~/. bashrc..."
-        echo "source $WORKSPACE_DIR/install/local_setup.bash" >> ~/. bashrc
+        log_info "Adding workspace setup to ~/.bashrc..."
+        echo "source $WORKSPACE_DIR/install/local_setup.bash" >> ~/.bashrc
     fi
     
     # Launch based on mode
