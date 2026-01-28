@@ -3,6 +3,7 @@ FROM osrf/ros:jazzy-desktop-full
 
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-colcon* \
     python3-colcon-common-extensions \
     build-essential \
     iputils-ping \
