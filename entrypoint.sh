@@ -115,22 +115,32 @@ setup_micro_ros_agent() {
     fi
 
     # Source workspace
-    # Remove flag check for unbound variables
+    log_info "Sourcing workspace setup..."
+    if [ ! -f "install/local_setup.bash" ]; then
+        error_exit "Workspace setup file not found after build"
+    fi
     set +u
     source install/local_setup.bash
-    # Re-enable checking for unbound variables
     set -u
+    log_info "Workspace sourced successfully"
 
     # Create micro-ROS agent workspace if needed
     if [ ! -d "src/uros" ]; then
         log_info "Creating micro-ROS agent workspace..."
+        set +u
         ros2 run micro_ros_setup create_agent_ws.bash 2>&1 || error_exit "Failed to create agent workspace"
+        set -u
         
         log_info "Building micro-ROS agent..."
+        set +u
         ros2 run micro_ros_setup build_agent.bash 2>&1 || error_exit "Failed to build agent"
+        set -u
         
         # Re-source after build
+        log_info "Re-sourcing workspace after agent build..."
+        set +u
         source install/local_setup.bash
+        set -u
     else
         log_info "Micro-ROS agent already built"
     fi
