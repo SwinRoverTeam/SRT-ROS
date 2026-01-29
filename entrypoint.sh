@@ -11,17 +11,6 @@ MICRO_ROS_PORT="${MICRO_ROS_PORT:-8888}"
 PARALLEL_JOBS="${PARALLEL_JOBS:-2}"
 LAUNCH_MODE="${LAUNCH_MODE:-integrated}"
 
-# Initialize ROS-related environment variables to prevent unset errors
-export AMENT_PREFIX_PATH="${AMENT_PREFIX_PATH:-}"
-export AMENT_TRACE_SETUP_FILES="${AMENT_TRACE_SETUP_FILES:-}"
-export CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}"
-export COLCON_PREFIX_PATH="${COLCON_PREFIX_PATH:-}"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-export PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
-export PYTHONPATH="${PYTHONPATH:-}"
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
-export ROS_VERSION="${ROS_VERSION:-}"
-export ROS_PYTHON_VERSION="${ROS_PYTHON_VERSION:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -99,11 +88,14 @@ setup_micro_ros_agent() {
 
     # Source ROS setup
     log_info "Sourcing ROS $ROS_DISTRO setup..."
-    printenv
     if [ ! -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
         error_exit "ROS $ROS_DISTRO setup file not found"
     fi
+    # Remove flag check for unbound variables
+    set +u
     source "/opt/ros/$ROS_DISTRO/setup.bash"
+    # Re-enable flag check for unbound variables
+    set -u
 
     # Update rosdep
     log_info "Updating rosdep..."
@@ -125,7 +117,11 @@ setup_micro_ros_agent() {
     fi
 
     # Source workspace
+    # Remove flag check for unbound variables
+    set +u
     source install/local_setup.bash
+    # Re-enable checking for unbound variables
+    set -u
 
     # Create micro-ROS agent workspace if needed
     if [ ! -d "src/uros" ]; then
