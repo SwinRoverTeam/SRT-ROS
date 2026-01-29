@@ -129,16 +129,12 @@ setup_micro_ros_agent() {
         log_info "Creating micro-ROS agent workspace..."
         set +u
         ros2 run micro_ros_setup create_agent_ws.sh 2>&1 || error_exit "Failed to create agent workspace"
-        set -u
         
         log_info "Building micro-ROS agent..."
-        set +u
         ros2 run micro_ros_setup build_agent.sh 2>&1 || error_exit "Failed to build agent"
-        set -u
         
         # Re-source after build
         log_info "Re-sourcing workspace after agent build..."
-        set +u
         source install/local_setup.bash
         set -u
     else
@@ -158,7 +154,9 @@ launch_rover_system() {
     log_step "Launching complete rover ground control system..."
     
     cd "$WORKSPACE_DIR" || error_exit "Failed to change to workspace"
+    set +u
     source install/local_setup.bash
+    set -u
     
     # Check if control node package exists
     if ! check_ros_package "rover_control"; then

@@ -16,6 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     python3-pip \
     python3-rosdep \
+    clang-tidy \
+    flex \
+    bison \
+    libncurses-dev \
+    usbutils \
     ros-jazzy-joy \
     && rm -rf /var/lib/apt/lists/*
 
