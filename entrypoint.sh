@@ -128,12 +128,12 @@ setup_micro_ros_agent() {
     if [ ! -d "src/uros" ]; then
         log_info "Creating micro-ROS agent workspace..."
         set +u
-        ros2 run micro_ros_setup create_agent_ws.bash 2>&1 || error_exit "Failed to create agent workspace"
+        ros2 run micro_ros_setup create_agent_ws.sh 2>&1 || error_exit "Failed to create agent workspace"
         set -u
         
         log_info "Building micro-ROS agent..."
         set +u
-        ros2 run micro_ros_setup build_agent.bash 2>&1 || error_exit "Failed to build agent"
+        ros2 run micro_ros_setup build_agent.sh 2>&1 || error_exit "Failed to build agent"
         set -u
         
         # Re-source after build
