@@ -27,17 +27,27 @@ def generate_launch_description():
             respawn_delay=2.0,
         ),
         
-        # 2. Control Node - processes joy input and sends commands
+        # 2. Controller Node - processes Xbox controller for drive control
         Node(
             package='rover_control',
-            executable='control_node',
-            name='control_node',
+            executable='controller_node',
+            name='xbox_controller',
             output='screen',
             respawn=True,
             respawn_delay=2.0,
         ),
         
-        # 3. Micro-ROS Agent - UDP bridge to ESP32
+        # 3. Joystick Node - processes joystick for arm control
+        Node(
+            package='rover_control',
+            executable='joystick_node',
+            name='joystick',
+            output='screen',
+            respawn=True,
+            respawn_delay=2.0,
+        ),
+        
+        # 4. Micro-ROS Agent - UDP bridge to ESP32
         ExecuteProcess(
             cmd=[
                 'ros2', 'run', 'micro_ros_agent', 'micro_ros_agent',

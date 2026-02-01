@@ -11,10 +11,17 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# Create executable
-add_executable(control_node src/control_node.cpp)
+# Create executables
+add_executable(controller_node src/control_node_controller.cpp)
+add_executable(joystick_node src/control_node_joystick.cpp)
 
-ament_target_dependencies(control_node
+ament_target_dependencies(controller_node
+  rclcpp
+  sensor_msgs
+  std_msgs
+)
+
+ament_target_dependencies(joystick_node
   rclcpp
   sensor_msgs
   std_msgs
@@ -22,7 +29,8 @@ ament_target_dependencies(control_node
 
 # Install targets
 install(TARGETS
-  control_node
+  controller_node
+  joystick_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
