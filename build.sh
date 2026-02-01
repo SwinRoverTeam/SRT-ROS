@@ -19,7 +19,8 @@ required_files=(
     "entrypoint.sh"
     "src/rover_control/package.xml"
     "src/rover_control/CMakeLists.txt"
-    "src/rover_control/src/control_node.cpp"
+    "src/rover_control/src/control_node_controller.cpp"
+    "src/rover_control/src/control_node_joystick.cpp"
     "src/rover_control/launch/system_launch.py"
 )
 
