@@ -17,14 +17,30 @@ def generate_launch_description():
         # Log startup information
         LogInfo(msg='Starting Rover Ground Control System... '),
         
-        # 1. Joy Node - reads controller input
-        Node(
-            package='joy',
-            executable='joy_node',
-            name='joy_node',
+        # 1a. Joy Node for Xbox Controller - /dev/input/js0
+        ExecuteProcess(
+            cmd=[
+                'ros2', 'run', 'joy', 'joy_node',
+                '--ros-args',
+                '-r', '__node:=joy_xbox',
+                '-r', 'joy:=joy_xbox',
+                '-p', 'dev:=/dev/input/js0'
+            ],
             output='screen',
-            respawn=True,
-            respawn_delay=2.0,
+            name='joy_xbox',
+        ),
+        
+        # 1b. Joy Node for Arm Joystick - /dev/input/js1
+        ExecuteProcess(
+            cmd=[
+                'ros2', 'run', 'joy', 'joy_node',
+                '--ros-args',
+                '-r', '__node:=joy_joystick',
+                '-r', 'joy:=joy_joystick',
+                '-p', 'dev:=/dev/input/js1'
+            ],
+            output='screen',
+            name='joy_joystick',
         ),
         
         # 2. Controller Node - processes Xbox controller for drive control
@@ -33,6 +49,7 @@ def generate_launch_description():
             executable='controller_node',
             name='xbox_controller',
             output='screen',
+            remappings=[('joy', 'joy_xbox')],
             respawn=True,
             respawn_delay=2.0,
         ),
@@ -43,6 +60,7 @@ def generate_launch_description():
             executable='joystick_node',
             name='joystick',
             output='screen',
+            remappings=[('joy', 'joy_joystick')],
             respawn=True,
             respawn_delay=2.0,
         ),
