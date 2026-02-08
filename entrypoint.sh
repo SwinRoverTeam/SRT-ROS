@@ -186,10 +186,6 @@ launch_rover_system() {
     log_info "Press Ctrl+C to stop all nodes"
     log_info "=========================================="
     
-    # Set USB /dev/input/js* number
-    XBOX_DEVICE=2
-    JOYSTICK_DEVICE=1
-
     # Launch the system using the launch file
     ros2 launch rover_control system_launch.py
 }
