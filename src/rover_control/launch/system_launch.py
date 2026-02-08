@@ -30,8 +30,7 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'device_id': int(xbox_device),
-                'autorepeat_rate': 20.0,
+                'dev': f'/dev/input/js{xbox_device}',
             }],
             remappings=[
                 ('joy', 'joy_xbox'),
@@ -44,11 +43,10 @@ def generate_launch_description():
             executable='joy_node',
             name='joy_node_joystick',
             output='screen',
-            respawn=False,
+            respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'device_id': int(joystick_device),
-                'autorepeat_rate': 20.0,
+                'dev': f'/dev/input/js{joystick_device}',
             }],
             remappings=[
                 ('joy', 'joy_joystick'),
