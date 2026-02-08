@@ -17,6 +17,8 @@ def generate_launch_description():
     xbox_device = os.environ.get('XBOX_DEVICE', '2')
     joystick_device = os.environ.get('JOYSTICK_DEVICE', '1')
     
+    print(f"[Launch Config] Xbox device: {xbox_device}, Joystick device: {joystick_device}")
+    
     return LaunchDescription([
         # Log startup information
         LogInfo(msg='Starting Rover Ground Control System... '),
@@ -30,7 +32,7 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'device_name': f'/dev/input/js{xbox_device}',
+                'device_id': int(xbox_device),
             }],
             remappings=[
                 ('joy', 'joy_xbox'),
@@ -46,7 +48,7 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'device_name': f'/dev/input/js{joystick_device}',
+                'device_id': int(joystick_device),
             }],
             remappings=[
                 ('joy', 'joy_joystick'),
