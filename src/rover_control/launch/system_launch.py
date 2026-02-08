@@ -30,7 +30,7 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'dev': f'/dev/input/js{xbox_device}',
+                'device_name': f'/dev/input/js{xbox_device}',
             }],
             remappings=[
                 ('joy', 'joy_xbox'),
@@ -46,7 +46,7 @@ def generate_launch_description():
             respawn=True,
             respawn_delay=2.0,
             parameters=[{
-                'dev': f'/dev/input/js{joystick_device}',
+                'device_name': f'/dev/input/js{joystick_device}',
             }],
             remappings=[
                 ('joy', 'joy_joystick'),
