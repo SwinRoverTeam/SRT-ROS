@@ -96,7 +96,7 @@ public:
         };
 
       triggerSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, trigger_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, trigger_callback);
 
     // Creating a publisher for the left joystick on the Xbox controller
 
@@ -153,7 +153,7 @@ public:
 
               while (TurnedRight != true) {
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = {250.0, 250.0, -250.0, -250.0};
+                joystick_msg.data = {350.0, 151.0, -350.0, -151.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = 600.0;
                 TurnedRight = true;
@@ -163,7 +163,7 @@ public:
 
               while (TurnedLeft != true) {
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = {-250.0, -250.0, 250.0, 250.0};
+                joystick_msg.data = { -350.0, -151.0, 350.0, 151.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = -600.0;
                 TurnedLeft = true;
@@ -176,7 +176,7 @@ public:
         };
 
       joystickSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, joystick_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, joystick_callback);
   }
 
 private:
