@@ -210,7 +210,7 @@ public:
         };
 
       JoystickSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, motor_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy_joystick", 10, motor_callback);
   }
 
 private:
