@@ -5,6 +5,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/float64.hpp>
 #include <iostream>
 #include <cmath>
 using namespace std;
@@ -45,9 +46,14 @@ public:
 
       ArmGripperPub = 
         this->create_publisher<std_msgs::msg::Float64MultiArray>("Arm_Gripper", 10);
+
+      ExcavForkPub = 
+        this->create_publisher<std_msgs::msg::Float64>("Excavation_Fork", 10);
       
       auto motor_callback =
         [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
+
+          auto fork_msg = std_msgs::msg::Float64();
 
           auto gripper_msg = std_msgs::msg::Float64MultiArray();
           double gripper_val = ScalingAlgorithm(msg->axes[2],0,1,-1, 1);
@@ -124,11 +130,14 @@ public:
           if (Arm.baseBool) {
 
             double base_val = msg->axes[1];
+            double fork_val = msg->axes[1];
+            fork_msg.data = fork_val;
             arm_msg.data = { base_val, 0.0, 0.0, 0.0, 0.0 };
 
             if (SendValBtn == 1) {
               while (baseValSent != true) {
 
+                ExcavForkPub->publish(fork_msg);
                 ArmJointsPub->publish(arm_msg);
                 baseValSent = true;
 
@@ -201,7 +210,7 @@ public:
         };
 
       JoystickSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy_joystick", 10, motor_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, motor_callback);
   }
 
 private:
@@ -224,6 +233,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr JoystickSub;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr ArmJointsPub;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr ArmGripperPub;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr ExcavForkPub;
 
 };
 
