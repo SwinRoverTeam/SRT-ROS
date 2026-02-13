@@ -96,7 +96,7 @@ public:
         };
 
       triggerSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, trigger_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, trigger_callback);
 
     // Creating a publisher for the left joystick on the Xbox controller
 
