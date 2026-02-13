@@ -36,7 +36,7 @@ echo ""
 
 # Build the Docker image
 echo "Building Docker image..."
-docker build -t swinroverteam/SRT-ROS:latest . 
+docker build -t swinroverteam/srt-ros:latest . 
 
 echo ""
 echo "=========================================="
