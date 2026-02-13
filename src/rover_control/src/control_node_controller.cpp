@@ -153,7 +153,7 @@ public:
 
               while (TurnedRight != true) {
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = {350.0, 151.0, -350.0, -151.0};
+                joystick_msg.data = {151.0, 350.0, -151.0, -350.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = 600.0;
                 TurnedRight = true;
