@@ -176,7 +176,7 @@ public:
         };
 
       joystickSub =
-        this->create_subscription<sensor_msgs::msg::Joy>("joy", 10, joystick_callback);
+        this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, joystick_callback);
   }
 
 private:
