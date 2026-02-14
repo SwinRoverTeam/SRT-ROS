@@ -10,6 +10,9 @@
 using namespace std;
 double savedArr = 0.0;
 bool reverseOn = false;
+bool TurnRightMotor = false;
+bool TurnLeftMotor = false;
+
 
 double ScalingAlgorithm(double old_value, int new_min = 0, int new_max = 8, int old_min = 0, int old_max = 1)
 {
@@ -27,16 +30,28 @@ double ScalingAlgorithm(double old_value, int new_min = 0, int new_max = 8, int 
 
 std::vector<double> MotorCompiler(double motor)
 {
-  if (!reverseOn) {
+  double mtr_forward = ScalingAlgorithm(motor, 0, 1, 1, -1);
+  double mtr_reverse = ScalingAlgorithm(motor, 0, -1, 1, -1);
 
-    double motor_val = ScalingAlgorithm(motor, 0, 1, 1, -1); 
-    return {motor_val, motor_val, motor_val, motor_val};
 
-  } else {
-    
-    double motor_val = ScalingAlgorithm(motor, 0, -1, 1, -1); 
-    return {motor_val, motor_val, motor_val, motor_val};
+  if (reverseOn && !TurnRightMotor && !TurnLeftMotor) 
+  {
+    return {mtr_reverse, mtr_reverse, mtr_reverse, mtr_reverse};
+  } 
+  
+  else if (!reverseOn && TurnRightMotor && !TurnLeftMotor) 
+  {
+    return {mtr_reverse, mtr_forward, mtr_reverse, mtr_forward};
+  } 
+  
+  else if (!reverseOn && !TurnRightMotor && TurnLeftMotor) 
+  {
+    return {mtr_forward, mtr_reverse, mtr_forward, mtr_reverse};
+  } 
 
+  else
+  {
+    return {mtr_forward, mtr_forward, mtr_forward, mtr_forward};
   }
 
 }
@@ -152,8 +167,9 @@ public:
             } else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
               while (TurnedRight != true) {
+                TurnRightMotor = true;
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = {151.0, 350.0, -151.0, -350.0};
+                joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = 600.0;
                 TurnedRight = true;
@@ -161,9 +177,11 @@ public:
 
             } else if (TurnLeftBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
+
               while (TurnedLeft != true) {
+                TurnLeftMotor = true;
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = { -350.0, -151.0, 350.0, 151.0};
+                joystick_msg.data = {{-151.0, 151.0, 151.0, -151.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = -600.0;
                 TurnedLeft = true;
@@ -178,7 +196,7 @@ public:
       joystickSub =
         this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, joystick_callback);
   }
-
+  }
 private:
 
   // size_t count_ = 0;
