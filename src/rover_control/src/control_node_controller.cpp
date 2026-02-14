@@ -38,7 +38,7 @@ std::vector<double> MotorCompiler(double motor)
   {
     return {mtr_reverse, mtr_reverse, mtr_reverse, mtr_reverse};
   } 
-  
+
   else if (!reverseOn && TurnRightMotor && !TurnLeftMotor) 
   {
     return {mtr_reverse, mtr_forward, mtr_reverse, mtr_forward};
@@ -181,7 +181,7 @@ public:
               while (TurnedLeft != true) {
                 TurnLeftMotor = true;
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
-                joystick_msg.data = {{-151.0, 151.0, 151.0, -151.0};
+                joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
                 joystickPub->publish(joystick_msg);
                 savedArr = -600.0;
                 TurnedLeft = true;
@@ -195,8 +195,9 @@ public:
 
       joystickSub =
         this->create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, joystick_callback);
+    
   }
-  }
+
 private:
 
   // size_t count_ = 0;
