@@ -152,6 +152,8 @@ public:
           if (SendValBtn == 1) {
             if ((savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2) && gamepadArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
+              TurnLeftMotor = false;
+              TurnRightMotor = false;
               auto joystick_msg = std_msgs::msg::Float64MultiArray();
               joystick_msg.data = joystickArr;
               joystickPub->publish(joystick_msg);
@@ -159,6 +161,8 @@ public:
 
             } else if ((savedArr > gamepadArr[1] + 2 || savedArr < gamepadArr[1] - 2) && joystickArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
+              TurnLeftMotor = false;
+              TurnRightMotor = false;
               auto joystick_msg = std_msgs::msg::Float64MultiArray();
               joystick_msg.data = gamepadArr;
               joystickPub->publish(joystick_msg);
@@ -166,8 +170,9 @@ public:
 
             } else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
+              TurnRightMotor = true;
               while (TurnedRight != true) {
-                TurnRightMotor = true;
+                
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
                 joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
                 joystickPub->publish(joystick_msg);
@@ -176,10 +181,10 @@ public:
               }
 
             } else if (TurnLeftBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
-
-
+              
+              TurnLeftMotor = true;
               while (TurnedLeft != true) {
-                TurnLeftMotor = true;
+                
                 auto joystick_msg = std_msgs::msg::Float64MultiArray();
                 joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
                 joystickPub->publish(joystick_msg);
