@@ -5,6 +5,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 
 #include <iostream>
@@ -25,9 +26,12 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joystickSub;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr joystickPub;
 
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr PivotHomePub;
+
     int SendValBtn;
     int TurnRightBtn;
     int TurnLeftBtn;
+    int PivotHomeBtn;
 
     double left_joystick_x;
     double left_joystick_y;
@@ -36,6 +40,8 @@ private:
 
     bool TurnedLeft = false;
     bool TurnedRight = false;
+    bool PivotHomed = false;
+
 
 public:
     XboxCtrlNode();
