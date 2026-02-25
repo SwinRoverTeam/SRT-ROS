@@ -14,7 +14,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 	triggerPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Drive", 10);
 
 	auto trigger_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
-		double right_trigger = msg->axes[4];
+		double right_trigger = msg->axes[5];
 
 		auto trigger_msg = std_msgs::msg::Float64MultiArray();
 
@@ -41,7 +41,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		gamepad_x = msg->axes[6];       // X axis of the gamepad  on the controller
 		gamepad_y = msg->axes[7];       // Y axis of the gamepad  on the controller
 
-		SendValBtn = msg->buttons[6];   // LB button on the controller
+		SendValBtn = msg->buttons[4];   // LB button on the controller
 		TurnRightBtn = msg->buttons[1]; // ( B ) button on the controller
 		TurnLeftBtn = msg->buttons[3];  // ( X ) button on the controller
 

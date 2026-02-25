@@ -21,6 +21,7 @@ required_files=(
     "src/rover_control/CMakeLists.txt"
     "src/rover_control/src/control_node_controller.cpp"
     "src/rover_control/src/control_node_joystick.cpp"
+    "src/rover_control/src/viz_node_controller.cpp" # New visualization node
     "src/rover_control/launch/system_launch.py"
 )
 

@@ -79,6 +79,14 @@ def generate_launch_description():
             output='screen',
             name='micro_ros_agent',
         ),
+
+        # 5. RVIZ2 Node - for visualizing rover state and sensor data
+        Node(
+            package='rover_control',
+            executable='viz_node_controller',
+            name='viz_node_controller',
+            output='screen',
+        ),
         
         LogInfo(msg=f'All nodes launched! Xbox: {xbox_device}, Joystick: {joystick_device}, Micro-ROS port {micro_ros_port}'),
     ])
