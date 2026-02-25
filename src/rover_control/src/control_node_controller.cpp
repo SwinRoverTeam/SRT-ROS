@@ -77,6 +77,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			} else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnRightMotor = true;
+				TurnLeftMotor = false;
 				while (TurnedRight != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -88,6 +89,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			} else if (TurnLeftBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnLeftMotor = true;
+				TurnRightMotor = false;
 				while (TurnedLeft != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
