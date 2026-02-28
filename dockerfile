@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-joy \
     joystick \
     ros-jazzy-rviz2 \
-    ros-jazzy-tf2-ros2 \
+    ros-jazzy-tf2-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up workspace
