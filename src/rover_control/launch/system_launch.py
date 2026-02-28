@@ -13,15 +13,9 @@ def generate_launch_description():
     # Get micro-ROS port from environment variable, default to 8888
     micro_ros_port = os.environ.get('MICRO_ROS_PORT', '8888')
     
-    # Get joystick device identifiers from environment variables (index like '2' or path like '/dev/input/js2')
-    xbox_raw = os.environ.get('XBOX_DEVICE', '1')
-    joystick_raw = os.environ.get('JOYSTICK_DEVICE', '0')
-
-    def to_dev_path(s):
-        return s if '/' in s else f'/dev/input/js{int(s)}'
-
-    xbox_device = to_dev_path(xbox_raw)
-    joystick_device = to_dev_path(joystick_raw)
+    # Get joystick device paths from environment variables
+    xbox_device = os.environ.get('XBOX_DEVICE', '1')
+    joystick_device = os.environ.get('JOYSTICK_DEVICE', '0')
     
     
     return LaunchDescription([
@@ -36,7 +30,7 @@ def generate_launch_description():
             output='screen',
             respawn=True,
             respawn_delay=2.0,
-            arguments=['--ros-args', '-p', f'device:={xbox_device}'],
+            arguments=['--ros-args', '-p', f'device_id:={xbox_device}'],
             remappings=[
                 ('joy', 'joy_xbox'),
             ],
@@ -50,7 +44,7 @@ def generate_launch_description():
             output='screen',
             respawn=True,
             respawn_delay=2.0,
-            arguments=['--ros-args', '-p', f'device:={joystick_device}'],
+            arguments=['--ros-args', '-p', f'device_id:={joystick_device}'],
             remappings=[
                 ('joy', 'joy_joystick'),
             ],
