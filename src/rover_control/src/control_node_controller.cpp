@@ -29,6 +29,8 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	joystickPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Rotate", 10);
 
+	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10);
+
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
 
@@ -44,6 +46,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		SendValBtn = msg->buttons[4];   // LB button on the controller
 		TurnRightBtn = msg->buttons[1]; // ( B ) button on the controller
 		TurnLeftBtn = msg->buttons[3];  // ( X ) button on the controller
+		PivotHomeBtn = msg->buttons[11]; // Menu Button on the controller; used for homing the Pivots of the rover
 
 		auto joystick_msg = std_msgs::msg::Float64MultiArray();
 		auto joystickArr = JoystickAlgorithm(left_joystick_y, left_joystick_x);
@@ -55,6 +58,10 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 		if (TurnLeftBtn == 0) {
 			TurnedLeft = false;
+		}
+
+		if (PivotHomeBtn == 0) {
+			PivotHomed = false;
 		}
 
 		if (SendValBtn == 1) {
@@ -77,6 +84,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			} else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnRightMotor = true;
+				TurnLeftMotor = false;
 				while (TurnedRight != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -88,6 +96,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			} else if (TurnLeftBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnLeftMotor = true;
+				TurnRightMotor = false;
 				while (TurnedLeft != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -96,6 +105,16 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 					savedArr = -600.0;
 					TurnedLeft = true;
 				}
+			} else if (PivotHomeBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
+				
+				while (PivotHomed != true) {
+					
+					auto pivotHome_msg = std_msgs::msg::Bool();
+					pivotHome_msg.data = true;
+					PivotHomePub->publish(pivotHome_msg);
+					PivotHomed = true;
+				}
+
 			}
 		}
 	};
