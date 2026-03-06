@@ -1,65 +1,37 @@
-// rover_viz_node.cpp
-// ============================================================
-// Subscribes to /Pivot_Drive and /Pivot_Rotate (Float64MultiArray)
-// Publishes MarkerArray to /rover_viz for RViz2 display.
+// rover_viz_node.cpp — RViz HUD for /Pivot_Drive and /Pivot_Rotate
 //
-// Layout (flat HUD in RViz, viewed top-down at z=0):
+// Pivot_Rotate truth table (echo-verified):
+//   RIGHT     +250  false     UP-RIGHT  +125  false
+//   UP           0  false     UP-LEFT   -125  false
+//   LEFT      -250  false     DOWN-LEFT +125  true
+//   DOWN         0  true      DOWN-RIGHT-125  true
 //
-//   [ DIRECTION ]    [ DRIVE BAR ]    [ MODE ]
+// val   = horizontal lean within each half (-250=leftmost, +250=rightmost)
+// reverseOn = false → upper half,  true → lower half (val sign mirrored in lower half)
 //
-// KEY: JoystickAlgorithm maps joystick → Pivot_Rotate val as follows:
-//
-//   Joystick    | val   | reverseOn
-//   ------------|-------|----------
-//   RIGHT (1,0) |   0   | false
-//   UP    (0,1) | -250  | false
-//   LEFT  (-1,0)|   0   | TRUE
-//   DOWN  (0,-1)| +250  | false
-//   UP-RIGHT    | -125  | false
-//   DOWN-RIGHT  | +125  | false
-//   UP-LEFT     | +125  | TRUE   ← same val as DOWN-RIGHT!
-//   DOWN-LEFT   | -125  | TRUE   ← same val as UP-RIGHT!
-//
-// val alone is AMBIGUOUS for diagonals. reverseOn is essential.
-// reverseOn is not published directly — we infer it from Pivot_Drive sign
-// when trigger is pressed, and persist it when trigger is idle.
-//
-// To reconstruct display angle from (val, reverseOn):
-//   The original rad = val * PI / 500  (before clamping)
-//   But for reverseOn=true cases, val was adjusted (±500 added).
-//   We must UNDO that adjustment to get the original rad:
-//     reverseOn=false: original_rad = val * PI / 500
-//     reverseOn=true:  if val >= 0: original_rad = (val - 500) * PI / 500
-//                      if val <  0: original_rad = (val + 500) * PI / 500
-//   Then: joystick_x = cos(-original_rad), joystick_y = sin(-original_rad)
-//   (because rad = -atan2(y,x), so atan2(y,x) = -original_rad)
-//   Display yaw = atan2(joystick_y, joystick_x) = -original_rad
-// ============================================================
+// reverseOn is not published; inferred from Pivot_Drive sign when trigger active,
+// persisted in last_reverse_on_ when trigger idle.
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <cmath>
 #include <string>
+#include <vector>
 
+// ---------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------
 struct Quat { double x, y, z, w; };
 Quat yaw_to_quat(double yaw)
 {
     return {0.0, 0.0, std::sin(yaw / 2.0), std::cos(yaw / 2.0)};
 }
 
-// Reconstruct display yaw from actual measured Pivot_Rotate values:
-//   RIGHT=+250/false, UP=0/false, LEFT=-250/false, UP-RIGHT=+125/false, UP-LEFT=-125/false
-//   DOWN=0/true, DOWN-RIGHT=-125/true, DOWN-LEFT=+125/true
-//
-// val encodes horizontal lean within each half-circle.
-// reverseOn selects upper(false) vs lower(true) half.
-// IMPORTANT: in the lower half, val sign is mirrored — negate x when reverse_on=true.
 double val_to_display_yaw(double val, bool reverse_on)
 {
-    double x = val / 250.0;
-    x = std::max(-1.0, std::min(1.0, x));
-    if (reverse_on) x = -x;  // lower half has mirrored val sign
+    double x = std::max(-1.0, std::min(1.0, val / 250.0));
+    if (reverse_on) x = -x;   // lower half has mirrored val sign
     double y = std::sqrt(std::max(0.0, 1.0 - x * x)) * (reverse_on ? -1.0 : 1.0);
     return std::atan2(y, x);
 }
@@ -69,40 +41,40 @@ std::string yaw_to_label(double yaw)
     double deg = yaw * 180.0 / M_PI;
     while (deg >  180.0) deg -= 360.0;
     while (deg <= -180.0) deg += 360.0;
-
-    // 0=right, 90=up, ±180=left, -90=down
-    double adeg = std::abs(deg);
-    if (adeg < 22.5)                      return "RIGHT";
-    if (adeg > 157.5)                     return "LEFT";
-    if (deg > 0 && adeg < 67.5)           return "UP-RIGHT";
-    if (deg > 0 && adeg < 112.5)          return "UP";
-    if (deg > 0)                          return "UP-LEFT";
-    if (deg < 0 && adeg < 67.5)           return "DOWN-RIGHT";
-    if (deg < 0 && adeg < 112.5)          return "DOWN";
-    return                                       "DOWN-LEFT";
+    double a = std::abs(deg);
+    if (a < 22.5)              return "RIGHT";
+    if (a > 157.5)             return "LEFT";
+    if (deg > 0 && a < 67.5)  return "UP-RIGHT";
+    if (deg > 0 && a < 112.5) return "UP";
+    if (deg > 0)               return "UP-LEFT";
+    if (deg < 0 && a < 67.5)  return "DOWN-RIGHT";
+    if (deg < 0 && a < 112.5) return "DOWN";
+    return                            "DOWN-LEFT";
 }
 
 // ---------------------------------------------------------------
 // Marker helpers
 // ---------------------------------------------------------------
-visualization_msgs::msg::Marker make_marker(
-    const std::string& frame, const rclcpp::Time& now,
-    int id, int type,
+using MArray = visualization_msgs::msg::MarkerArray;
+using Marker = visualization_msgs::msg::Marker;
+
+Marker make_marker(
+    const std::string& frame, const rclcpp::Time& now, int id, int type,
     double px, double py, double pz,
     double sx, double sy, double sz,
     float r, float g, float b, float a,
     const rclcpp::Duration& lt)
 {
-    visualization_msgs::msg::Marker m;
-    m.header.frame_id = frame;
-    m.header.stamp    = now;
-    m.ns              = "rover_viz";
-    m.id              = id;
-    m.type            = type;
-    m.action          = visualization_msgs::msg::Marker::ADD;
-    m.pose.position.x = px;
-    m.pose.position.y = py;
-    m.pose.position.z = pz;
+    Marker m;
+    m.header.frame_id    = frame;
+    m.header.stamp       = now;
+    m.ns                 = "rover_viz";
+    m.id                 = id;
+    m.type               = type;
+    m.action             = Marker::ADD;
+    m.pose.position.x    = px;
+    m.pose.position.y    = py;
+    m.pose.position.z    = pz;
     m.pose.orientation.w = 1.0;
     m.scale.x = sx; m.scale.y = sy; m.scale.z = sz;
     m.color.r = r;  m.color.g = g;  m.color.b = b;  m.color.a = a;
@@ -110,20 +82,21 @@ visualization_msgs::msg::Marker make_marker(
     return m;
 }
 
-visualization_msgs::msg::Marker make_text(
-    const std::string& frame, const rclcpp::Time& now,
-    int id, const std::string& text,
+Marker make_text(
+    const std::string& frame, const rclcpp::Time& now, int id,
+    const std::string& text,
     double px, double py, double pz,
     double size, float r, float g, float b,
     const rclcpp::Duration& lt)
 {
-    auto m = make_marker(frame, now, id,
-        visualization_msgs::msg::Marker::TEXT_VIEW_FACING,
+    auto m = make_marker(frame, now, id, Marker::TEXT_VIEW_FACING,
         px, py, pz, 0, 0, size, r, g, b, 1.0f, lt);
     m.text = text;
     return m;
 }
 
+// ---------------------------------------------------------------
+// Node
 // ---------------------------------------------------------------
 class RoverVizNode : public rclcpp::Node
 {
@@ -142,71 +115,66 @@ public:
                 if (!msg->data.empty()) last_rotate_ = msg->data[0];
             });
 
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-            "rover_viz", 10);
+        marker_pub_ = this->create_publisher<MArray>("rover_viz", 10);
 
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(100),
             std::bind(&RoverVizNode::publish_markers, this));
 
-        RCLCPP_INFO(this->get_logger(), "RoverVizNode started → publishing /rover_viz");
+        RCLCPP_INFO(this->get_logger(), "RoverVizNode started → /rover_viz");
     }
 
 private:
     void publish_markers()
     {
-        visualization_msgs::msg::MarkerArray array;
+        MArray array;
         int id = 0;
         const std::string F = "base_link";
         auto now = this->now();
         auto lt  = rclcpp::Duration::from_seconds(0.5);
 
-        using M = visualization_msgs::msg::Marker;
-
-        // ---------------------------------------------------------------
-        // Compute state
-        // ---------------------------------------------------------------
-
-        // Detect reverseOn from Pivot_Drive sign when trigger is active.
-        // Persist last known state when trigger is idle (drive ≈ 0).
+        // ---- State ----
         bool is_driving = (std::abs(last_drive_) > 0.02);
-        if (is_driving) {
-            last_reverse_on_ = (last_drive_ < 0.0);
-        }
-        bool reverse_on       = last_reverse_on_;
-        bool is_reverse_drive = (is_driving && last_drive_ < 0.0);
-        double bar_fill       = std::min(1.0, std::abs(last_drive_));
+        if (is_driving) last_reverse_on_ = (last_drive_ < 0.0);
+        bool reverse_on      = last_reverse_on_;
+        bool is_reverse_mode = (is_driving && last_drive_ < 0.0);
+        double bar_fill      = std::min(1.0, std::abs(last_drive_));
 
-        // Reconstruct true joystick display angle
-        double yaw = val_to_display_yaw(last_rotate_, reverse_on);
+        double yaw      = val_to_display_yaw(last_rotate_, reverse_on);
         std::string dir = yaw_to_label(yaw);
 
-        // ---------------------------------------------------------------
-        // PANEL 1: DIRECTION  (centred at x = -3.0)
-        // ---------------------------------------------------------------
+        // ================================================================
+        // PANEL 1 — DIRECTION  (centred x = -3)
+        // ================================================================
         {
             const double X = -3.0;
 
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
+            // Background plate
+            array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
+                X, 0, -0.05,  2.4, 2.4, 0.05,
+                0.15f, 0.15f, 0.20f, 0.9f, lt));
 
+            // Title
             array.markers.push_back(make_text(F, now, id++, "DIRECTION",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
+                X, 1.35, 0.1,  0.25,  0.9f, 0.9f, 0.9f, lt));
 
-            struct RL { std::string t; double dx, dy; };
+            // Ring labels
+            struct RL { const char* t; double dx, dy; };
             for (auto& rl : std::vector<RL>{
                     {"UP",    0.0,  0.85},
                     {"DOWN",  0.0, -0.85},
-                    {"LEFT", -0.85, 0.0},
-                    {"RIGHT", 0.85, 0.0}})
+                    {"LEFT", -0.85, 0.0 },
+                    {"RIGHT", 0.85, 0.0 }})
             {
                 array.markers.push_back(make_text(F, now, id++, rl.t,
-                    X + rl.dx, rl.dy, 0.1,  0.17,  0.5f,0.5f,0.5f, lt));
+                    X + rl.dx, rl.dy, 0.1,  0.17,  0.5f, 0.5f, 0.5f, lt));
             }
 
+            // Rotating arrow
             {
-                auto arrow = make_marker(F, now, id++, M::ARROW,
-                    X, 0, 0.05,  0.75, 0.10, 0.10,  1.0f,0.85f,0.0f, 1.0f, lt);
+                auto arrow = make_marker(F, now, id++, Marker::ARROW,
+                    X, 0, 0.05,  0.75, 0.10, 0.10,
+                    1.0f, 0.85f, 0.0f, 1.0f, lt);
                 auto q = yaw_to_quat(yaw);
                 arrow.pose.orientation.x = q.x;
                 arrow.pose.orientation.y = q.y;
@@ -215,443 +183,121 @@ private:
                 array.markers.push_back(arrow);
             }
 
+            // Direction label + raw value
             {
                 char buf[48];
                 snprintf(buf, sizeof(buf), "%s\n(%.0f)", dir.c_str(), last_rotate_);
                 array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.22,  1.0f,0.85f,0.0f, lt));
+                    X, -1.35, 0.1,  0.22,  1.0f, 0.85f, 0.0f, lt));
             }
         }
 
-        // ---------------------------------------------------------------
-        // PANEL 2: DRIVE BAR  (centred at x = 0.0)
-        // ---------------------------------------------------------------
+        // ================================================================
+        // PANEL 2 — DRIVE BAR  (centred x = 0)
+        // ================================================================
         {
             const double X      = 0.0;
             const double BW     = 1.8;
             const double BH     = 0.40;
             const double B_LEFT = X - BW / 2.0;
 
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
+            // Background plate
+            array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
+                X, 0, -0.05,  2.4, 2.4, 0.05,
+                0.15f, 0.15f, 0.20f, 0.9f, lt));
 
+            // Title
             array.markers.push_back(make_text(F, now, id++, "DRIVE",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
+                X, 1.35, 0.1,  0.25,  0.9f, 0.9f, 0.9f, lt));
 
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
+            // Bar track
+            array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
                 X, 0, 0.0,  BW + 0.07, BH + 0.07, 0.04,
-                0.08f,0.08f,0.08f, 1.0f, lt));
+                0.08f, 0.08f, 0.08f, 1.0f, lt));
 
+            // Bar fill (grows left → right)
             if (bar_fill > 0.01) {
                 double fw  = bar_fill * BW;
                 double fcx = B_LEFT + fw / 2.0;
-                float gr = is_driving ? 0.1f : 0.3f;
-                float gg = is_driving ? 1.0f : 0.3f;
-                float gb = is_driving ? 0.2f : 0.3f;
-                array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                    fcx, 0, 0.03,  fw, BH, 0.04,  gr, gg, gb, 1.0f, lt));
-            }
-
-            for (double t : {0.25, 0.50, 0.75}) {
-                double tx = B_LEFT + t * BW;
-                array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                    tx, 0, 0.05,  0.025, BH * 0.65, 0.05,
-                    0.55f,0.55f,0.55f, 1.0f, lt));
-            }
-
-            array.markers.push_back(make_text(F, now, id++, "0",
-                B_LEFT - 0.14, 0, 0.1,  0.18,  0.6f,0.6f,0.6f, lt));
-            array.markers.push_back(make_text(F, now, id++, "1",
-                B_LEFT + BW + 0.14, 0, 0.1,  0.18,  0.6f,0.6f,0.6f, lt));
-
-            {
-                char buf[32];
-                snprintf(buf, sizeof(buf), "%.2f", last_drive_);
-                array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.22,  0.7f,0.7f,0.7f, lt));
-            }
-        }
-
-        // ---------------------------------------------------------------
-        // PANEL 3: MODE (FWD / REV / IDLE)  (centred at x = +3.0)
-        // ---------------------------------------------------------------
-        {
-            const double X = 3.0;
-
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
-
-            array.markers.push_back(make_text(F, now, id++, "MODE",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
-
-            float cr, cg, cb;
-            if (!is_driving)            { cr=0.30f; cg=0.30f; cb=0.30f; }
-            else if (is_reverse_drive)  { cr=1.00f; cg=0.15f; cb=0.15f; }
-            else                        { cr=0.10f; cg=0.90f; cb=0.20f; }
-
-            array.markers.push_back(make_marker(F, now, id++, M::CYLINDER,
-                X, 0, 0.05,  1.3, 1.3, 0.1,  cr, cg, cb, 1.0f, lt));
-
-            std::string status = !is_driving ? "IDLE" : (is_reverse_drive ? "REV" : "FWD");
-            array.markers.push_back(make_text(F, now, id++, status,
-                X, 0, 0.15,  0.30,  1.0f,1.0f,1.0f, lt));
-
-            {
-                char buf[32];
-                snprintf(buf, sizeof(buf), "drive: %.2f", last_drive_);
-                array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.20,  0.7f,0.7f,0.7f, lt));
-            }
-        }
-
-        marker_pub_->publish(array);
-    }
-
-    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr drive_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr rotate_sub_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
-    rclcpp::TimerBase::SharedPtr timer_;
-
-    double last_drive_    = 0.0;
-    double last_rotate_   = 0.0;
-    bool   last_reverse_on_ = false;  // persisted reverseOn state
-};
-
-int main(int argc, char* argv[])
-{
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<RoverVizNode>());
-    rclcpp::shutdown();
-    return 0;
-}
-// Subscribes to /Pivot_Drive and /Pivot_Rotate (Float64MultiArray)
-// Publishes MarkerArray to /rover_viz for RViz2 display.
-//
-// Layout (flat HUD in RViz, viewed top-down at z=0):
-//
-//   [ DIRECTION ]    [ DRIVE BAR ]    [ MODE ]
-//
-// DIRECTION panel (x=-3):
-//   Arrow rotates to mirror physical joystick position.
-//   Pivot_Rotate: Right=+250, Left=-250, Up=0(FWD), Down=0(REV)
-//   Left/right from val. Up/down inferred from FWD/REV state.
-//
-// DRIVE BAR panel (x=0):
-//   Horizontal bar growing 0→1 showing trigger pressure.
-//   Green when active, grey when idle.
-//
-// MODE panel (x=+3):
-//   FWD/REV/IDLE detected from Pivot_Drive sign:
-//     MotorCompiler FWD → positive output → is_reverse=false
-//     MotorCompiler REV → negative output → is_reverse=true
-// ============================================================
-
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/float64_multi_array.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
-#include <cmath>
-#include <string>
-
-// Euler yaw → quaternion (z-axis rotation only)
-struct Quat { double x, y, z, w; };
-Quat yaw_to_quat(double yaw)
-{
-    return {0.0, 0.0, std::sin(yaw / 2.0), std::cos(yaw / 2.0)};
-}
-
-// ---------------------------------------------------------------
-// Direction arrow angle
-//
-// Pivot_Rotate: Right=+250, Left=-250, Up=0(FWD), Down=0(REV)
-// val encodes only the X component of the joystick.
-// We reconstruct a 2D unit vector:
-//   x = val / 250  (clamped -1..1)
-//   y = sqrt(1-x^2) * (+1 if FWD, -1 if REV)
-// Then yaw = atan2(y, x)
-// This means:
-//   val=+250  → x=+1, y=0 → yaw=0       (arrow right)
-//   val=-250  → x=-1, y=0 → yaw=PI      (arrow left)
-//   val=0 FWD → x=0,  y=+1→ yaw=PI/2   (arrow up)
-//   val=0 REV → x=0,  y=-1→ yaw=-PI/2  (arrow down)
-// ---------------------------------------------------------------
-double direction_yaw(double rotate_val, bool is_reverse)
-{
-    double x = rotate_val / 250.0;
-    x = std::max(-1.0, std::min(1.0, x));
-    double y = std::sqrt(std::max(0.0, 1.0 - x * x)) * (is_reverse ? -1.0 : 1.0);
-    return std::atan2(y, x);
-}
-
-std::string direction_label(double rotate_val, bool is_reverse)
-{
-    double x = rotate_val / 250.0;
-    x = std::max(-1.0, std::min(1.0, x));
-    double abs_x = std::abs(x);
-
-    if (abs_x < 0.2) {
-        return is_reverse ? "DOWN" : "UP";
-    } else if (abs_x > 0.85) {
-        return x > 0 ? "RIGHT" : "LEFT";
-    } else {
-        std::string horiz = x > 0 ? "RIGHT" : "LEFT";
-        std::string vert  = is_reverse ? "DOWN" : "UP";
-        return vert + "-" + horiz;
-    }
-}
-
-// ---------------------------------------------------------------
-// Marker helpers — reduce boilerplate
-// ---------------------------------------------------------------
-visualization_msgs::msg::Marker make_marker(
-    const std::string& frame, const rclcpp::Time& now,
-    int id, int type,
-    double px, double py, double pz,
-    double sx, double sy, double sz,
-    float r, float g, float b, float a,
-    const rclcpp::Duration& lt)
-{
-    visualization_msgs::msg::Marker m;
-    m.header.frame_id = frame;
-    m.header.stamp    = now;
-    m.ns              = "rover_viz";
-    m.id              = id;
-    m.type            = type;
-    m.action          = visualization_msgs::msg::Marker::ADD;
-    m.pose.position.x = px;
-    m.pose.position.y = py;
-    m.pose.position.z = pz;
-    m.pose.orientation.w = 1.0;
-    m.scale.x = sx; m.scale.y = sy; m.scale.z = sz;
-    m.color.r = r;  m.color.g = g;  m.color.b = b;  m.color.a = a;
-    m.lifetime = lt;
-    return m;
-}
-
-visualization_msgs::msg::Marker make_text(
-    const std::string& frame, const rclcpp::Time& now,
-    int id, const std::string& text,
-    double px, double py, double pz,
-    double size, float r, float g, float b,
-    const rclcpp::Duration& lt)
-{
-    auto m = make_marker(frame, now, id,
-        visualization_msgs::msg::Marker::TEXT_VIEW_FACING,
-        px, py, pz, 0, 0, size, r, g, b, 1.0f, lt);
-    m.text = text;
-    return m;
-}
-
-// ---------------------------------------------------------------
-class RoverVizNode : public rclcpp::Node
-{
-public:
-    RoverVizNode() : Node("rover_viz_node")
-    {
-        drive_sub_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-            "Pivot_Drive", 10,
-            [this](const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-                if (!msg->data.empty()) last_drive_ = msg->data[0];
-            });
-
-        rotate_sub_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
-            "Pivot_Rotate", 10,
-            [this](const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-                if (!msg->data.empty()) last_rotate_ = msg->data[0];
-            });
-
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-            "rover_viz", 10);
-
-        timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(100),
-            std::bind(&RoverVizNode::publish_markers, this));
-
-        RCLCPP_INFO(this->get_logger(), "RoverVizNode started → publishing /rover_viz");
-    }
-
-private:
-    void publish_markers()
-    {
-        visualization_msgs::msg::MarkerArray array;
-        int id = 0;
-        const std::string F = "base_link";
-        auto now = this->now();
-        auto lt  = rclcpp::Duration::from_seconds(0.5);
-
-        using M = visualization_msgs::msg::Marker;
-
-        // ---------------------------------------------------------------
-        // Compute state
-        // ---------------------------------------------------------------
-
-        // DRIVE mode — from Pivot_Drive sign (MotorCompiler output):
-        //   reverseOn=false → positive output when trigger pressed  → FWD
-        //   reverseOn=true  → negative output when trigger pressed  → REV
-        bool is_reverse_drive = (last_drive_ < -0.02);
-        bool is_driving       = (std::abs(last_drive_) > 0.02);
-        double bar_fill       = std::min(1.0, std::abs(last_drive_));
-
-        // DIRECTION arrow — from Pivot_Rotate sign ONLY, independent of trigger.
-        //   Positive val (0..+250) = upper half (top/right arc)
-        //   Negative val (-250..0) = lower half (down/left arc)
-        //   Small deadband at 0: default upper half unless clearly negative
-        bool arrow_lower_half = (last_rotate_ < -1.0);
-
-        double yaw      = direction_yaw(last_rotate_, arrow_lower_half);
-        std::string dir = direction_label(last_rotate_, arrow_lower_half);
-
-        // ---------------------------------------------------------------
-        // PANEL 1: DIRECTION  (centred at x = -3.0)
-        // ---------------------------------------------------------------
-        {
-            const double X = -3.0;
-
-            // Background plate
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
-
-            // Title
-            array.markers.push_back(make_text(F, now, id++, "DIRECTION",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
-
-            // Ring position labels
-            struct RL { std::string t; double dx, dy; };
-            for (auto& rl : std::vector<RL>{
-                    {"UP",    0.0,  0.85},
-                    {"DOWN",  0.0, -0.85},
-                    {"LEFT", -0.85, 0.0},
-                    {"RIGHT", 0.85, 0.0}})
-            {
-                array.markers.push_back(make_text(F, now, id++, rl.t,
-                    X + rl.dx, rl.dy, 0.1,  0.17,  0.5f,0.5f,0.5f, lt));
-            }
-
-            // Rotating arrow
-            {
-                auto arrow = make_marker(F, now, id++, M::ARROW,
-                    X, 0, 0.05,  0.75, 0.10, 0.10,  1.0f,0.85f,0.0f, 1.0f, lt);
-                auto q = yaw_to_quat(yaw);
-                arrow.pose.orientation.x = q.x;
-                arrow.pose.orientation.y = q.y;
-                arrow.pose.orientation.z = q.z;
-                arrow.pose.orientation.w = q.w;
-                array.markers.push_back(arrow);
-            }
-
-            // Label + raw value below panel
-            {
-                char buf[48];
-                snprintf(buf, sizeof(buf), "%s\n(%.0f)", dir.c_str(), last_rotate_);
-                array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.22,  1.0f,0.85f,0.0f, lt));
-            }
-        }
-
-        // ---------------------------------------------------------------
-        // PANEL 2: DRIVE BAR  (centred at x = 0.0)
-        // ---------------------------------------------------------------
-        {
-            const double X      = 0.0;
-            const double BW     = 1.8;    // bar track full width
-            const double BH     = 0.40;   // bar height
-            const double B_LEFT = X - BW / 2.0;
-
-            // Background plate
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
-
-            // Title
-            array.markers.push_back(make_text(F, now, id++, "DRIVE",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
-
-            // Bar track (dark trough)
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, 0.0,  BW + 0.07, BH + 0.07, 0.04,
-                0.08f,0.08f,0.08f, 1.0f, lt));
-
-            // Filled portion (grows left→right)
-            if (bar_fill > 0.01)
-            {
-                double fw  = bar_fill * BW;
-                double fcx = B_LEFT + fw / 2.0;
-                float gr = is_driving ? 0.1f : 0.3f;
-                float gg = is_driving ? 1.0f : 0.3f;
-                float gb = is_driving ? 0.2f : 0.3f;
-                array.markers.push_back(make_marker(F, now, id++, M::CUBE,
+                float  gr  = is_driving ? 0.1f : 0.3f;
+                float  gg  = is_driving ? 1.0f : 0.3f;
+                float  gb  = is_driving ? 0.2f : 0.3f;
+                array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
                     fcx, 0, 0.03,  fw, BH, 0.04,  gr, gg, gb, 1.0f, lt));
             }
 
             // Tick marks at 25 / 50 / 75 %
             for (double t : {0.25, 0.50, 0.75}) {
                 double tx = B_LEFT + t * BW;
-                array.markers.push_back(make_marker(F, now, id++, M::CUBE,
+                array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
                     tx, 0, 0.05,  0.025, BH * 0.65, 0.05,
-                    0.55f,0.55f,0.55f, 1.0f, lt));
+                    0.55f, 0.55f, 0.55f, 1.0f, lt));
             }
 
-            // End labels "0" and "1"
+            // End labels
             array.markers.push_back(make_text(F, now, id++, "0",
-                B_LEFT - 0.14, 0, 0.1,  0.18,  0.6f,0.6f,0.6f, lt));
+                B_LEFT - 0.14, 0, 0.1,  0.18,  0.6f, 0.6f, 0.6f, lt));
             array.markers.push_back(make_text(F, now, id++, "1",
-                B_LEFT + BW + 0.14, 0, 0.1,  0.18,  0.6f,0.6f,0.6f, lt));
+                B_LEFT + BW + 0.14, 0, 0.1,  0.18,  0.6f, 0.6f, 0.6f, lt));
 
-            // Numeric value below panel
+            // Numeric value
             {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%.2f", last_drive_);
                 array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.22,  0.7f,0.7f,0.7f, lt));
+                    X, -1.35, 0.1,  0.22,  0.7f, 0.7f, 0.7f, lt));
             }
         }
 
-        // ---------------------------------------------------------------
-        // PANEL 3: MODE (FWD / REV / IDLE)  (centred at x = +3.0)
-        // ---------------------------------------------------------------
+        // ================================================================
+        // PANEL 3 — MODE: FWD / REV / IDLE  (centred x = +3)
+        // ================================================================
         {
             const double X = 3.0;
 
             // Background plate
-            array.markers.push_back(make_marker(F, now, id++, M::CUBE,
-                X, 0, -0.05,  2.4, 2.4, 0.05,  0.15f,0.15f,0.20f, 0.9f, lt));
+            array.markers.push_back(make_marker(F, now, id++, Marker::CUBE,
+                X, 0, -0.05,  2.4, 2.4, 0.05,
+                0.15f, 0.15f, 0.20f, 0.9f, lt));
 
             // Title
             array.markers.push_back(make_text(F, now, id++, "MODE",
-                X, 1.35, 0.1,  0.25,  0.9f,0.9f,0.9f, lt));
+                X, 1.35, 0.1,  0.25,  0.9f, 0.9f, 0.9f, lt));
 
-            // Indicator cylinder — colour reflects state
+            // Indicator cylinder
             float cr, cg, cb;
-            if (!is_driving)            { cr=0.30f; cg=0.30f; cb=0.30f; }  // grey  = idle
-            else if (is_reverse_drive)  { cr=1.00f; cg=0.15f; cb=0.15f; }  // red   = reverse
-            else                        { cr=0.10f; cg=0.90f; cb=0.20f; }  // green = forward
+            if      (!is_driving)      { cr=0.30f; cg=0.30f; cb=0.30f; } // grey  = IDLE
+            else if (is_reverse_mode)  { cr=1.00f; cg=0.15f; cb=0.15f; } // red   = REV
+            else                       { cr=0.10f; cg=0.90f; cb=0.20f; } // green = FWD
 
-            array.markers.push_back(make_marker(F, now, id++, M::CYLINDER,
+            array.markers.push_back(make_marker(F, now, id++, Marker::CYLINDER,
                 X, 0, 0.05,  1.3, 1.3, 0.1,  cr, cg, cb, 1.0f, lt));
 
-            // Status text on cylinder
-            std::string status = !is_driving ? "IDLE" : (is_reverse_drive ? "REV" : "FWD");
+            // Status text
+            std::string status = !is_driving ? "IDLE" : (is_reverse_mode ? "REV" : "FWD");
             array.markers.push_back(make_text(F, now, id++, status,
-                X, 0, 0.15,  0.30,  1.0f,1.0f,1.0f, lt));
+                X, 0, 0.15,  0.30,  1.0f, 1.0f, 1.0f, lt));
 
-            // Raw Pivot_Drive value below panel
+            // Raw drive value
             {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "drive: %.2f", last_drive_);
                 array.markers.push_back(make_text(F, now, id++, buf,
-                    X, -1.35, 0.1,  0.20,  0.7f,0.7f,0.7f, lt));
+                    X, -1.35, 0.1,  0.20,  0.7f, 0.7f, 0.7f, lt));
             }
         }
 
-        // ---------------------------------------------------------------
         marker_pub_->publish(array);
     }
 
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr drive_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr rotate_sub_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    rclcpp::Publisher<MArray>::SharedPtr marker_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    double last_drive_  = 0.0;
-    double last_rotate_ = 0.0;
+    double last_drive_      = 0.0;
+    double last_rotate_     = 0.0;
+    bool   last_reverse_on_ = false;
 };
 
 int main(int argc, char* argv[])
