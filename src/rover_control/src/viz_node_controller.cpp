@@ -160,15 +160,21 @@ private:
         // Compute state
         // ---------------------------------------------------------------
 
-        // FWD/REV from Pivot_Drive sign (MotorCompiler output):
-        //   reverseOn=false → ScalingAlgorithm(motor, 0, +1, 1,-1) → positive when trigger pressed
-        //   reverseOn=true  → ScalingAlgorithm(motor, 0, -1, 1,-1) → negative when trigger pressed
-        bool is_reverse = (last_drive_ < -0.02);
-        bool is_driving = (std::abs(last_drive_) > 0.02);
-        double bar_fill = std::min(1.0, std::abs(last_drive_));
+        // DRIVE mode — from Pivot_Drive sign (MotorCompiler output):
+        //   reverseOn=false → positive output when trigger pressed  → FWD
+        //   reverseOn=true  → negative output when trigger pressed  → REV
+        bool is_reverse_drive = (last_drive_ < -0.02);
+        bool is_driving       = (std::abs(last_drive_) > 0.02);
+        double bar_fill       = std::min(1.0, std::abs(last_drive_));
 
-        double yaw      = direction_yaw(last_rotate_, is_reverse);
-        std::string dir = direction_label(last_rotate_, is_reverse);
+        // DIRECTION arrow — from Pivot_Rotate sign ONLY, independent of trigger.
+        //   Positive val (0..+250) = upper half (top/right arc)
+        //   Negative val (-250..0) = lower half (down/left arc)
+        //   Small deadband at 0: default upper half unless clearly negative
+        bool arrow_lower_half = (last_rotate_ < -1.0);
+
+        double yaw      = direction_yaw(last_rotate_, arrow_lower_half);
+        std::string dir = direction_label(last_rotate_, arrow_lower_half);
 
         // ---------------------------------------------------------------
         // PANEL 1: DIRECTION  (centred at x = -3.0)
@@ -290,15 +296,15 @@ private:
 
             // Indicator cylinder — colour reflects state
             float cr, cg, cb;
-            if (!is_driving)       { cr=0.30f; cg=0.30f; cb=0.30f; }  // grey  = idle
-            else if (is_reverse)   { cr=1.00f; cg=0.15f; cb=0.15f; }  // red   = reverse
-            else                   { cr=0.10f; cg=0.90f; cb=0.20f; }  // green = forward
+            if (!is_driving)            { cr=0.30f; cg=0.30f; cb=0.30f; }  // grey  = idle
+            else if (is_reverse_drive)  { cr=1.00f; cg=0.15f; cb=0.15f; }  // red   = reverse
+            else                        { cr=0.10f; cg=0.90f; cb=0.20f; }  // green = forward
 
             array.markers.push_back(make_marker(F, now, id++, M::CYLINDER,
                 X, 0, 0.05,  1.3, 1.3, 0.1,  cr, cg, cb, 1.0f, lt));
 
             // Status text on cylinder
-            std::string status = !is_driving ? "IDLE" : (is_reverse ? "REV" : "FWD");
+            std::string status = !is_driving ? "IDLE" : (is_reverse_drive ? "REV" : "FWD");
             array.markers.push_back(make_text(F, now, id++, status,
                 X, 0, 0.15,  0.30,  1.0f,1.0f,1.0f, lt));
 
