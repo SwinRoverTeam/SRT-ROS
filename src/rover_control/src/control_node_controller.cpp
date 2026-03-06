@@ -31,6 +31,8 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10);
 
+	reverseStatePub = create_publisher<std_msgs::msg::Bool>("Reverse_State", 10);
+
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
 
@@ -154,6 +156,11 @@ std::vector<double> XboxCtrlNode::JoystickAlgorithm(double x_axis, double y_axis
 		} else {
 			reverseOn = false;
 		}
+
+		// Publish reverseOn so viz node can read it without needing trigger pressed
+		auto reverse_msg = std_msgs::msg::Bool();
+		reverse_msg.data = reverseOn;
+		reverseStatePub->publish(reverse_msg);
 
 		// return {deg, deg, deg, deg}
 		return std::vector<double>{val, val, val, val};

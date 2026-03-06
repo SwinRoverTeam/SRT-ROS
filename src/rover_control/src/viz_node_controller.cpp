@@ -14,6 +14,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <cmath>
 #include <string>
@@ -115,6 +116,14 @@ public:
                 if (!msg->data.empty()) last_rotate_ = msg->data[0];
             });
 
+        // Directly subscribe to reverseOn state published by controller node.
+        // Updates whenever joystick moves — no trigger needed.
+        reverse_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+            "Reverse_State", 10,
+            [this](const std_msgs::msg::Bool::SharedPtr msg) {
+                last_reverse_on_ = msg->data;
+            });
+
         marker_pub_ = this->create_publisher<MArray>("rover_viz", 10);
 
         timer_ = this->create_wall_timer(
@@ -134,9 +143,8 @@ private:
         auto lt  = rclcpp::Duration::from_seconds(0.5);
 
         // ---- State ----
-        bool is_driving = (std::abs(last_drive_) > 0.02);
-        if (is_driving) last_reverse_on_ = (last_drive_ < 0.0);
-        bool reverse_on      = last_reverse_on_;
+        bool is_driving      = (std::abs(last_drive_) > 0.02);
+        bool reverse_on      = last_reverse_on_;   // direct from /Reverse_State
         bool is_reverse_mode = (is_driving && last_drive_ < 0.0);
         double bar_fill      = std::min(1.0, std::abs(last_drive_));
 
@@ -292,6 +300,7 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr drive_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr rotate_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr reverse_sub_;
     rclcpp::Publisher<MArray>::SharedPtr marker_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 

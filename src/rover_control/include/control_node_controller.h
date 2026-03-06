@@ -26,6 +26,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joystickSub;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr joystickPub;
 
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr reverseStatePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr PivotHomePub;
 
     int SendValBtn;
