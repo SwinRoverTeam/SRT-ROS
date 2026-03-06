@@ -40,7 +40,9 @@ ament_target_dependencies(joystick_node
 ament_target_dependencies(viz_node_controller
   rclcpp
   std_msgs
+  sensor_msgs
   visualization_msgs
+  geometry_msgs
 ) # add dependencies for rviz executable
 
 # Install targets
