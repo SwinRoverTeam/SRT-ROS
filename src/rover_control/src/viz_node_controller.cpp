@@ -14,7 +14,6 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
-#include <sensor_msgs/msg/joy.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <cmath>
 #include <string>
@@ -116,21 +115,6 @@ public:
                 if (!msg->data.empty()) last_rotate_ = msg->data[0];
             });
 
-        // Read axes[1] (left joystick Y) directly from /joy to track reverseOn
-        // without needing the trigger pressed. axes[1] < 0 = lower half = reverseOn.
-        // axes[7] (d-pad Y) used as fallback if joystick Y is neutral.
-        joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
-            "joy", 10,
-            [this](const sensor_msgs::msg::Joy::SharedPtr msg) {
-                double joy_y  = (msg->axes.size() > 1) ? (double)msg->axes[1] : 0.0;
-                double dpad_y = (msg->axes.size() > 7) ? (double)msg->axes[7] : 0.0;
-                double y = (std::abs(joy_y) > 0.1) ? joy_y : dpad_y;
-                if (std::abs(y) > 0.1) {
-                    last_reverse_on_ = (y < 0.0);
-                }
-                // If y ≈ 0 (joystick centred), keep last known state
-            });
-
         marker_pub_ = this->create_publisher<MArray>("rover_viz", 10);
 
         timer_ = this->create_wall_timer(
@@ -150,8 +134,9 @@ private:
         auto lt  = rclcpp::Duration::from_seconds(0.5);
 
         // ---- State ----
-        bool is_driving      = (std::abs(last_drive_) > 0.02);
-        bool reverse_on      = last_reverse_on_;   // updated live by /joy subscription
+        bool is_driving = (std::abs(last_drive_) > 0.02);
+        if (is_driving) last_reverse_on_ = (last_drive_ < 0.0);
+        bool reverse_on      = last_reverse_on_;
         bool is_reverse_mode = (is_driving && last_drive_ < 0.0);
         double bar_fill      = std::min(1.0, std::abs(last_drive_));
 
@@ -307,7 +292,6 @@ private:
 
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr drive_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr rotate_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<MArray>::SharedPtr marker_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
