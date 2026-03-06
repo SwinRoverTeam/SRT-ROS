@@ -116,17 +116,19 @@ public:
                 if (!msg->data.empty()) last_rotate_ = msg->data[0];
             });
 
-        // Subscribe to /joy directly to get joystick Y axis for reverse detection.
-        // axes[1] = left joystick Y: positive = up, negative = down (lower half).
-        // axes[7] = d-pad Y: same convention.
-        // This lets the arrow show correct half even when trigger is not pressed.
+        // Read axes[1] (left joystick Y) directly from /joy to track reverseOn
+        // without needing the trigger pressed. axes[1] < 0 = lower half = reverseOn.
+        // axes[7] (d-pad Y) used as fallback if joystick Y is neutral.
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "joy", 10,
             [this](const sensor_msgs::msg::Joy::SharedPtr msg) {
-                double joy_y  = (msg->axes.size() > 1) ? msg->axes[1] : 0.0;
-                double dpad_y = (msg->axes.size() > 7) ? msg->axes[7] : 0.0;
-                double y = (joy_y != 0.0) ? joy_y : dpad_y;
-                last_reverse_on_ = (y < -0.1);   // negative Y = lower half = reverseOn
+                double joy_y  = (msg->axes.size() > 1) ? (double)msg->axes[1] : 0.0;
+                double dpad_y = (msg->axes.size() > 7) ? (double)msg->axes[7] : 0.0;
+                double y = (std::abs(joy_y) > 0.1) ? joy_y : dpad_y;
+                if (std::abs(y) > 0.1) {
+                    last_reverse_on_ = (y < 0.0);
+                }
+                // If y ≈ 0 (joystick centred), keep last known state
             });
 
         marker_pub_ = this->create_publisher<MArray>("rover_viz", 10);
@@ -148,8 +150,8 @@ private:
         auto lt  = rclcpp::Duration::from_seconds(0.5);
 
         // ---- State ----
-        bool is_driving = (std::abs(last_drive_) > 0.02);
-        bool reverse_on      = last_reverse_on_;   // set directly by /joy subscription
+        bool is_driving      = (std::abs(last_drive_) > 0.02);
+        bool reverse_on      = last_reverse_on_;   // updated live by /joy subscription
         bool is_reverse_mode = (is_driving && last_drive_ < 0.0);
         double bar_fill      = std::min(1.0, std::abs(last_drive_));
 
