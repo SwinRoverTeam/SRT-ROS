@@ -85,7 +85,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 				TurnRightMotor = true;
 				TurnLeftMotor = false;
-				reverseOn = false;
+				reverseOn = false;				// Bug Fixed: Reversing must be turned off to ensure the values for Pivot_Drive are sending correctly
 				while (TurnedRight != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -98,7 +98,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 				TurnLeftMotor = true;
 				TurnRightMotor = false;
-				reverseOn = false;
+				reverseOn = false;				// Bug Fixed: Reversing must be turned off to ensure the values for Pivot_Drive are sending correctly
 				while (TurnedLeft != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
