@@ -85,6 +85,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 				TurnRightMotor = true;
 				TurnLeftMotor = false;
+				reverseOn = false;
 				while (TurnedRight != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -97,6 +98,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 				TurnLeftMotor = true;
 				TurnRightMotor = false;
+				reverseOn = false;
 				while (TurnedLeft != true) {
 
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
