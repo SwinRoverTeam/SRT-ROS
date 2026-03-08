@@ -117,6 +117,11 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 					PivotHomed = true;
 				}
 
+			} else {
+				// Reversing and turning motors are turned off if only the trigger button is pressed
+				reverseOn = false;
+				TurnRightMotor = false;
+				TurnLeftMotor = false;
 			}
 		}
 	};
