@@ -41,6 +41,7 @@ private:
     bool TurnedLeft = false;
     bool TurnedRight = false;
     bool PivotHomed = false;
+    bool RotateValSent = false;
 
 
 public:

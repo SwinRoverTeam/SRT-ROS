@@ -6,6 +6,11 @@
 
 #include "control_node_controller.h"
 
+// Xbox controller node: converts Xbox Joy messages into rover commands.
+// - `Pivot_Drive` is driven by the right trigger axis (axis 4).
+// - `Pivot_Rotate` is produced from the left joystick/gamepad inputs.
+// - `SendValBtn` (LB / button 6) gates publishing for safety so the
+//   motors only receive commands when LB is actively pressed.
 XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	RCLCPP_INFO(get_logger(), "XboxController Node has been activated");
@@ -13,6 +18,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	triggerPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Drive", 10);
 
+	// Trigger callback: converts right trigger axis to a drive command.
 	auto trigger_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		double right_trigger = msg->axes[4];
 
@@ -31,6 +37,9 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10);
 
+	// Joystick callback: handles pivot rotation, turning and homing.
+	// - `SendValBtn` (LB) gates publishing; when released flags are reset.
+	// - Turn/Homing actions are single-shot via flags (e.g. `TurnedRight`).
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
 
@@ -43,6 +52,8 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		gamepad_x = msg->axes[6];       // X axis of the gamepad  on the controller
 		gamepad_y = msg->axes[7];       // Y axis of the gamepad  on the controller
 
+		// LB (button 6) is the publish-enable button for pivot commands.
+		// Keep LB as a digital button; do not mix with trigger axes.
 		SendValBtn = msg->buttons[6];   // LB button on the controller
 		TurnRightBtn = msg->buttons[1]; // ( B ) button on the controller
 		TurnLeftBtn = msg->buttons[3];  // ( X ) button on the controller
@@ -64,23 +75,37 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			PivotHomed = false;
 		}
 
+		if (SendValBtn == 0) {
+			RotateValSent = false;
+		}
+
 		if (SendValBtn == 1) {
 			if ((savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2) && gamepadArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
 				TurnLeftMotor = false;
 				TurnRightMotor = false;
-				auto joystick_msg = std_msgs::msg::Float64MultiArray();
-				joystick_msg.data = joystickArr;
-				joystickPub->publish(joystick_msg);
-				savedArr = joystickArr[1];
+				// Publish one rotation command per LB press for joystick input.
+				while (RotateValSent != true) {
+
+					auto joystick_msg = std_msgs::msg::Float64MultiArray();
+					joystick_msg.data = joystickArr;
+					joystickPub->publish(joystick_msg);
+					savedArr = joystickArr[1];
+					RotateValSent = true; // mark that we've sent for this press
+				}
 			} else if ((savedArr > gamepadArr[1] + 2 || savedArr < gamepadArr[1] - 2) && joystickArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
 				TurnLeftMotor = false;
 				TurnRightMotor = false;
-				auto joystick_msg = std_msgs::msg::Float64MultiArray();
-				joystick_msg.data = gamepadArr;
-				joystickPub->publish(joystick_msg);
-				savedArr = gamepadArr[1];
+				// Publish one rotation command per LB press for gamepad input.
+				while (RotateValSent != true) {
+
+					auto joystick_msg = std_msgs::msg::Float64MultiArray();
+					joystick_msg.data = gamepadArr;
+					joystickPub->publish(joystick_msg);
+					savedArr = gamepadArr[1];
+					RotateValSent = true; // mark that we've sent for this press
+				}
 			} else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnRightMotor = true;
