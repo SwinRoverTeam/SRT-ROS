@@ -75,37 +75,23 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			PivotHomed = false;
 		}
 
-		if (SendValBtn == 0) {
-			RotateValSent = false;
-		}
-
 		if (SendValBtn == 1) {
 			if ((savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2) && gamepadArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
 				TurnLeftMotor = false;
 				TurnRightMotor = false;
-				// Publish one rotation command per LB press for joystick input.
-				while (RotateValSent != true) {
-
-					auto joystick_msg = std_msgs::msg::Float64MultiArray();
-					joystick_msg.data = joystickArr;
-					joystickPub->publish(joystick_msg);
-					savedArr = joystickArr[1];
-					RotateValSent = true; // mark that we've sent for this press
-				}
+				auto joystick_msg = std_msgs::msg::Float64MultiArray();
+				joystick_msg.data = joystickArr;
+				joystickPub->publish(joystick_msg);
+				savedArr = joystickArr[1];
 			} else if ((savedArr > gamepadArr[1] + 2 || savedArr < gamepadArr[1] - 2) && joystickArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
 
 				TurnLeftMotor = false;
 				TurnRightMotor = false;
-				// Publish one rotation command per LB press for gamepad input.
-				while (RotateValSent != true) {
-
-					auto joystick_msg = std_msgs::msg::Float64MultiArray();
-					joystick_msg.data = gamepadArr;
-					joystickPub->publish(joystick_msg);
-					savedArr = gamepadArr[1];
-					RotateValSent = true; // mark that we've sent for this press
-				}
+				auto joystick_msg = std_msgs::msg::Float64MultiArray();
+				joystick_msg.data = gamepadArr;
+				joystickPub->publish(joystick_msg);
+				savedArr = gamepadArr[1];
 			} else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
 
 				TurnRightMotor = true;
