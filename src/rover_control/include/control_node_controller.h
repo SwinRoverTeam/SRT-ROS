@@ -12,11 +12,6 @@
 #include <cmath>
 #include <vector>
 
-double savedArr = 0.0;
-bool reverseOn = false;
-bool TurnRightMotor = false;
-bool TurnLeftMotor = false;
-
 class XboxCtrlNode : public rclcpp::Node
 {
 private:
@@ -28,20 +23,24 @@ private:
 
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr PivotHomePub;
 
-    int SendValBtn;
-    int TurnRightBtn;
-    int TurnLeftBtn;
-    int PivotHomeBtn;
+    int SendValBtn = 0;
+    int TurnRightBtn = 0;
+    int TurnLeftBtn = 0;
+    int PivotHomeBtn = 0;
 
-    double left_joystick_x;
-    double left_joystick_y;
-    double gamepad_x;
-    double gamepad_y;
+    double left_joystick_x = 0.0;
+    double left_joystick_y = 0.0;
+    double gamepad_x = 0.0;
+    double gamepad_y = 0.0;
+
+    double savedArr = 0.0;
+    bool reverseOn = false;
+    bool TurnRightMotor = false;
+    bool TurnLeftMotor = false;
 
     bool TurnedLeft = false;
     bool TurnedRight = false;
     bool PivotHomed = false;
-
 
 public:
     XboxCtrlNode();
