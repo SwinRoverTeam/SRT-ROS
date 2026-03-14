@@ -90,7 +90,10 @@ double direction_yaw(double rotate_val, bool is_reverse, bool is_pivot_right, bo
     if (is_pivot_right) return 0.0;
     if (is_pivot_left)  return M_PI;
 
-    double x = rotate_val / 250.0;
+    // When reverseOn=true the wheel frame is physically flipped 180°, so a
+    // positive val that meant "right" in forward orientation now points left.
+    // Negating x when reversed maps val correctly onto the display compass.
+    double x = (rotate_val / 250.0) * (is_reverse ? -1.0 : 1.0);
     x = std::max(-1.0, std::min(1.0, x));
     double y = std::sqrt(std::max(0.0, 1.0 - x * x)) * (is_reverse ? -1.0 : 1.0);
     return std::atan2(y, x);
@@ -101,7 +104,8 @@ std::string direction_label(double rotate_val, bool is_reverse, bool is_pivot_ri
     if (is_pivot_right) return "PIVOT\nRIGHT";
     if (is_pivot_left)  return "PIVOT\nLEFT";
 
-    double x = rotate_val / 250.0;
+    // Same frame-flip correction as direction_yaw
+    double x = (rotate_val / 250.0) * (is_reverse ? -1.0 : 1.0);
     x = std::max(-1.0, std::min(1.0, x));
     double abs_x = std::abs(x);
 
