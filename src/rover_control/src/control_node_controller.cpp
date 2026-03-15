@@ -228,7 +228,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 	if      (TurnRightMotor && !TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_RIGHT; }
 	else if (!TurnRightMotor && TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_LEFT;  }
 	else if (reverseOn && !TurnLeftMotor && !TurnRightMotor) { driveMode = DriveMode::REVERSE;     }
-	else if (!reverseOn && !TurnLeftMotor && !TurnRightMotor){ driveMode = DriveMode::FORWARD;     }
+	else (!reverseOn && !TurnLeftMotor && !TurnRightMotor){ driveMode = DriveMode::FORWARD;     }
 
 	switch (driveMode) {
 
@@ -249,7 +249,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 		
 		case DriveMode::FORWARD: 
 			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
-		break;
+		break;                    
 
 		//TODO Should really have an error case here
 	}
