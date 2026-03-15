@@ -5,33 +5,58 @@
 // Constexpr constants -> compile time constants
 
 #include "control_node_controller.h"
+#include <std_msgs/msg/int32.hpp>
+
+// ---------------------------------------------------------------------------
+// Input mode: encodes which control is active this callback tick.
+// Evaluated once per joystick_callback so every switch reads cleanly.
+// ---------------------------------------------------------------------------
+enum class InputMode {
+	NONE,           // LB not held, or nothing changed
+	JOYSTICK,       // Left joystick moved (LB held)
+	GAMEPAD,        // D-pad moved (LB held)
+	TURN_RIGHT,     // B button (LB held, sticks neutral)
+	TURN_LEFT,      // X button (LB held, sticks neutral)
+	PIVOT_HOME      // Menu button (LB held, sticks neutral, no B/X)
+};
+
+// ---------------------------------------------------------------------------
+// Drive mode: encodes the current wheel-orientation state for MotorCompiler.
+// ---------------------------------------------------------------------------
+enum class DriveMode {
+	FORWARD,        // Wheels facing front 180° — normal drive
+	REVERSE,        // Wheels facing rear 180° — reversed drive
+	PIVOT_RIGHT,    // B-button pivot
+	PIVOT_LEFT      // X-button pivot
+};
 
 XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	RCLCPP_INFO(get_logger(), "XboxController Node has been activated");
-	// Creating a publisher for the right trigger on the Xbox controller
 
+	// -----------------------------------------------------------------------
+	// Trigger callback — right trigger drives motors (independent of LB)
+	// -----------------------------------------------------------------------
 	triggerPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Drive", 10);
 
 	auto trigger_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		double right_trigger = msg->axes[4];
 
 		auto trigger_msg = std_msgs::msg::Float64MultiArray();
-
 		trigger_msg.data = MotorCompiler(right_trigger);
-
 		triggerPub->publish(trigger_msg);
 	};
 
 	triggerSub = create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, trigger_callback);
 
-	// Creating a publisher for the left joystick on the Xbox controller
-
-	joystickPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Rotate", 10);
-
+	// -----------------------------------------------------------------------
+	// Joystick / button callback — wheel steering and pivot control
+	// -----------------------------------------------------------------------
+	joystickPub  = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Rotate", 10);
 	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10);
-
 	reverseStatePub = create_publisher<std_msgs::msg::Bool>("Reverse_State", 10);
+	inputModePub    = create_publisher<std_msgs::msg::Int32>("Input_Mode", 10);
+	driveModePub    = create_publisher<std_msgs::msg::Int32>("Drive_Mode", 10);
 
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
@@ -40,85 +65,129 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		//   return;
 		// }
 
-		left_joystick_x = msg->axes[0]; // X axis of the left joystick on the controller
-		left_joystick_y = msg->axes[1]; // Y axis of the left joystick on the controller
-		gamepad_x = msg->axes[6];       // X axis of the gamepad  on the controller
-		gamepad_y = msg->axes[7];       // Y axis of the gamepad  on the controller
+		left_joystick_x = msg->axes[0];  // X axis of the left joystick on the controller
+		left_joystick_y = msg->axes[1];  // Y axis of the left joystick on the controller
+		gamepad_x       = msg->axes[6];  // X axis of the gamepad  on the controller
+		gamepad_y       = msg->axes[7];  // Y axis of the gamepad  on the controller
 
-		SendValBtn = msg->buttons[6];   // LB button on the controller
-		TurnRightBtn = msg->buttons[1]; // ( B ) button on the controller
-		TurnLeftBtn = msg->buttons[3];  // ( X ) button on the controller
-		PivotHomeBtn = msg->buttons[11]; // Menu Button on the controller; used for homing the Pivots of the rover
+		SendValBtn   = msg->buttons[6];  // LB button on the controller
+		TurnRightBtn = msg->buttons[1];  // ( B ) button on the controller
+		TurnLeftBtn  = msg->buttons[3];  // ( X ) button on the controller
+		PivotHomeBtn = msg->buttons[11]; // Menu button — homing the Pivots of the rover
 
-		auto joystick_msg = std_msgs::msg::Float64MultiArray();
+		// Reset one-shot latch flags when their buttons are released
+		if (TurnRightBtn == 0) { TurnedRight = false; }
+		if (TurnLeftBtn  == 0) { TurnedLeft  = false; }
+		if (PivotHomeBtn == 0) { PivotHomed  = false; }
+
+		// Nothing to do while LB is not held
+		if (SendValBtn != 1) { return; }
+
+		// ------------------------------------------------------------------
+		// Compute wheel-angle arrays only while LB is held, so reverseOn is
+		// never clobbered by a stick returning to centre between presses.
+		// ------------------------------------------------------------------
 		auto joystickArr = JoystickAlgorithm(left_joystick_y, left_joystick_x);
-		auto gamepadArr = JoystickAlgorithm(gamepad_y, gamepad_x);
+		//bool reverseOnAfterJoystick = reverseOn; // snapshot before gamepad overwrites it
+		auto gamepadArr  = JoystickAlgorithm(gamepad_y, gamepad_x);
+		// Restore: joystick snapshot wins until a publish path decides otherwise
+		//reverseOn = reverseOnAfterJoystick;
 
-		if (TurnRightBtn == 0) {
-			TurnedRight = false;
-		}
+		// ------------------------------------------------------------------
+		// Determine which input is active this tick
+		// ------------------------------------------------------------------
+		bool joystickMoved = (savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2);
+		bool gamepadMoved  = (savedArr > gamepadArr[1]  + 2 || savedArr < gamepadArr[1]  - 2);
+		bool sticksNeutral = (joystickArr[1] == 0.0 && gamepadArr[1] == 0.0);
+		bool noPivotBtn    = (TurnRightBtn != 1 && TurnLeftBtn != 1);
 
-		if (TurnLeftBtn == 0) {
-			TurnedLeft = false;
-		}
+		InputMode mode = InputMode::NONE;
 
-		if (PivotHomeBtn == 0) {
-			PivotHomed = false;
-		}
+		if      (joystickMoved && gamepadArr[1] == 0  && noPivotBtn) { mode = InputMode::JOYSTICK;   }
+		else if (gamepadMoved  && joystickArr[1] == 0 && noPivotBtn) { mode = InputMode::GAMEPAD;    }
+		else if (TurnRightBtn == 1 && sticksNeutral)                 { mode = InputMode::TURN_RIGHT; }
+		else if (TurnLeftBtn  == 1 && sticksNeutral)                 { mode = InputMode::TURN_LEFT;  }
+		else if (PivotHomeBtn == 1 && sticksNeutral && noPivotBtn)   { mode = InputMode::PIVOT_HOME; }
 
-		if (SendValBtn == 1) {
-			if ((savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2) && gamepadArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
+		// ------------------------------------------------------------------
+		// Act on the resolved input mode
+		// ------------------------------------------------------------------
+		switch (mode) {
 
-				TurnLeftMotor = false;
+			case InputMode::JOYSTICK: {
+				JoystickAlgorithm(left_joystick_y, left_joystick_x); // updates reverseOn
+				TurnLeftMotor  = false;
 				TurnRightMotor = false;
 				auto joystick_msg = std_msgs::msg::Float64MultiArray();
 				joystick_msg.data = joystickArr;
 				joystickPub->publish(joystick_msg);
 				savedArr = joystickArr[1];
-			} else if ((savedArr > gamepadArr[1] + 2 || savedArr < gamepadArr[1] - 2) && joystickArr[1] == 0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
+				break;
+			}
 
-				TurnLeftMotor = false;
+			case InputMode::GAMEPAD: {
+				// D-pad steers the wheels — recompute reverseOn from gamepad path
+				JoystickAlgorithm(gamepad_y, gamepad_x); // updates reverseOn
+				TurnLeftMotor  = false;
 				TurnRightMotor = false;
 				auto joystick_msg = std_msgs::msg::Float64MultiArray();
 				joystick_msg.data = gamepadArr;
 				joystickPub->publish(joystick_msg);
 				savedArr = gamepadArr[1];
-			} else if (TurnRightBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
+				break;
+			}
 
+			case InputMode::TURN_RIGHT: {
+				// B button — pivot all wheels for right turn (one-shot latch)
 				TurnRightMotor = true;
-				TurnLeftMotor = false;
-				while (TurnedRight != true) {
-
+				TurnLeftMotor  = false;
+				reverseOn = false;
+				if (!TurnedRight) {
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
 					joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
 					joystickPub->publish(joystick_msg);
-					savedArr = 600.0;
+					savedArr    = 600.0;
 					TurnedRight = true;
 				}
-			} else if (TurnLeftBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0) {
+				break;
+			}
 
-				TurnLeftMotor = true;
+			case InputMode::TURN_LEFT: {
+				// X button — pivot all wheels for left turn (one-shot latch)
+				TurnLeftMotor  = true;
 				TurnRightMotor = false;
-				while (TurnedLeft != true) {
-
+				reverseOn = false;
+				if (!TurnedLeft) {
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
 					joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
 					joystickPub->publish(joystick_msg);
-					savedArr = -600.0;
+					savedArr   = -600.0;
 					TurnedLeft = true;
 				}
-			} else if (PivotHomeBtn == 1 && joystickArr[1] == 0.0 && gamepadArr[1] == 0.0 && (TurnRightBtn != 1 && TurnLeftBtn != 1)) {
-				
-				while (PivotHomed != true) {
-					
+				break;
+			}
+
+			case InputMode::PIVOT_HOME: {
+				// Menu button — send homing signal once (one-shot latch)
+				if (!PivotHomed) {
 					auto pivotHome_msg = std_msgs::msg::Bool();
 					pivotHome_msg.data = true;
 					PivotHomePub->publish(pivotHome_msg);
 					PivotHomed = true;
 				}
-
+				break;
 			}
+
+			case InputMode::NONE:
+			default:
+				// LB held but no input changed — do nothing
+				break;
 		}
+
+		// Publish InputMode so viz node can colour buttons correctly
+		auto im_msg = std_msgs::msg::Int32();
+		im_msg.data = static_cast<int>(mode);
+		inputModePub->publish(im_msg);
 	};
 
 	joystickSub = create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, joystick_callback);
@@ -137,54 +206,70 @@ double XboxCtrlNode::ScalingAlgorithm(double old_value, int new_min, int new_max
 }
 
 std::vector<double> XboxCtrlNode::JoystickAlgorithm(double x_axis, double y_axis) {
-	double rad = -atan2(y_axis, x_axis); // Archtan Math
-	// double deg = (rad * (180 / M_PI));                          // Fix needed with the value of Pi (90 degrees in place to correct for earlier detected issue
-	// of motor range)
+	double rad = -atan2(y_axis, x_axis); // Arctangent math
 
 	if (x_axis == -0.0 && y_axis == -0.0) {
 		return {0.0, 0.0, 0.0, 0.0};
-	} else {
-
-		double val = 500 * (rad / M_PI);
-
-		if (val < -250.0) {
-			val += 500;
-			reverseOn = true;
-		} else if (val > 250.0) {
-			val -= 500;
-			reverseOn = true;
-		} else {
-			reverseOn = false;
-		}
-
-		// Publish reverseOn so viz node can read it without needing trigger pressed
-		auto reverse_msg = std_msgs::msg::Bool();
-		reverse_msg.data = reverseOn;
-		reverseStatePub->publish(reverse_msg);
-
-		// return {deg, deg, deg, deg}
-		return std::vector<double>{val, val, val, val};
 	}
+
+	double val = 500 * (rad / M_PI);
+
+	if (val < -250.0) {
+		val += 500;
+		reverseOn = true;
+	} else if (val > 250.0) {
+		val -= 500;
+		reverseOn = true;
+	} else {
+		reverseOn = false;
+	}
+
+	// Publish reverseOn so viz node always knows which half the joystick is in
+	auto rev_msg = std_msgs::msg::Bool();
+	rev_msg.data = reverseOn;
+	reverseStatePub->publish(rev_msg);
+
+	return std::vector<double>{val, val, val, val};
 }
 
 std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
-	double mtr_forward = ScalingAlgorithm(motor, 0, 1, 1, -1);
+	double mtr_forward = ScalingAlgorithm(motor, 0,  1, 1, -1);
 	double mtr_reverse = ScalingAlgorithm(motor, 0, -1, 1, -1);
 
-	if (reverseOn && !TurnRightMotor && !TurnLeftMotor) {
-		return std::vector<double>{mtr_reverse, mtr_reverse, mtr_reverse, mtr_reverse};
-	}
+	// Encode the current wheel/drive state into a DriveMode for a clean switch
+	DriveMode driveMode = DriveMode::FORWARD;
 
-	else if (!reverseOn && TurnRightMotor && !TurnLeftMotor) {
-		return std::vector<double>{mtr_reverse, mtr_forward, mtr_reverse, mtr_forward};
-	}
+	if      (TurnRightMotor && !TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_RIGHT; }
+	else if (!TurnRightMotor && TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_LEFT;  }
+	else if (reverseOn && !TurnLeftMotor && !TurnRightMotor) { driveMode = DriveMode::REVERSE;     }
+	else if (!reverseOn && !TurnLeftMotor && !TurnRightMotor){ driveMode = DriveMode::FORWARD;     }
 
-	else if (!reverseOn && !TurnRightMotor && TurnLeftMotor) {
-		return std::vector<double>{mtr_forward, mtr_reverse, mtr_forward, mtr_reverse};
-	}
+	// Publish DriveMode so viz node can colour drive bar and buttons correctly
+	auto dm_msg = std_msgs::msg::Int32();
+	dm_msg.data = static_cast<int>(driveMode);
+	driveModePub->publish(dm_msg);
 
-	else {
-		return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
+	switch (driveMode) {
+
+		case DriveMode::REVERSE:
+			// Wheels face rear — invert all four motors
+			return std::vector<double>{mtr_reverse, mtr_reverse, mtr_reverse, mtr_reverse};
+		break;
+
+		case DriveMode::PIVOT_RIGHT:
+			// B-button pivot — alternate motor directions for in-place right turn
+			return std::vector<double>{mtr_reverse, mtr_forward, mtr_reverse, mtr_forward};
+		break;
+
+		case DriveMode::PIVOT_LEFT:
+			// X-button pivot — alternate motor directions for in-place left turn
+			return std::vector<double>{mtr_forward, mtr_reverse, mtr_forward, mtr_reverse};
+		break;
+		
+		case DriveMode::FORWARD: {
+			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
+		}
+			
 	}
 }
 
