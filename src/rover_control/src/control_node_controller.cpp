@@ -251,9 +251,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
 		break;
 
-		default:
-			// Should really have an error case here
-			return;
+		//TODO Should really have an error case here
 	}
 }
 
