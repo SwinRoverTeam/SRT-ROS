@@ -247,10 +247,13 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 			return std::vector<double>{mtr_forward, mtr_reverse, mtr_forward, mtr_reverse};
 		break;
 		
-		case DriveMode::FORWARD: {
+		case DriveMode::FORWARD: 
 			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
-		}
-			
+		break;
+
+		default:
+			// Should really have an error case here
+			return;
 	}
 }
 
