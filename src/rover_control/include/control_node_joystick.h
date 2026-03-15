@@ -22,6 +22,8 @@ struct
 class JoystickNode : public rclcpp::Node
 {
 private:
+    double slider_val;
+    double gripper_val;
     int SendValBtn;
 
     int baseBtn;
