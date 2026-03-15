@@ -228,7 +228,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 	if      (TurnRightMotor && !TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_RIGHT; }
 	else if (!TurnRightMotor && TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_LEFT;  }
 	else if (reverseOn && !TurnLeftMotor && !TurnRightMotor) { driveMode = DriveMode::REVERSE;     }
-	else (!reverseOn && !TurnLeftMotor && !TurnRightMotor){ driveMode = DriveMode::FORWARD;     }
+	else if (!reverseOn && !TurnLeftMotor && !TurnRightMotor) { driveMode = DriveMode::FORWARD; }
 
 	switch (driveMode) {
 
@@ -251,8 +251,14 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
 		break;                    
 
-		//TODO Should really have an error case here
+		// Fail-safe default case: does nothing if none of the above are satisfied
+		default:
+			return std::vector<double>{0.0, 0.0, 0.0, 0.0};
+		break;
 	}
+
+	// Fail-safe fallback for any unexpected state.
+	return std::vector<double>{0.0, 0.0, 0.0, 0.0};
 }
 
 int main(int argc, char* argv[]) {
