@@ -5,12 +5,9 @@
 // Constexpr constants -> compile time constants
 
 #include "control_node_controller.h"
-#include <std_msgs/msg/int32.hpp>
 
-// ---------------------------------------------------------------------------
 // Input mode: encodes which control is active this callback tick.
 // Evaluated once per joystick_callback so every switch reads cleanly.
-// ---------------------------------------------------------------------------
 enum class InputMode {
 	NONE,           // LB not held, or nothing changed
 	JOYSTICK,       // Left joystick moved (LB held)
@@ -20,9 +17,7 @@ enum class InputMode {
 	PIVOT_HOME      // Menu button (LB held, sticks neutral, no B/X)
 };
 
-// ---------------------------------------------------------------------------
 // Drive mode: encodes the current wheel-orientation state for MotorCompiler.
-// ---------------------------------------------------------------------------
 enum class DriveMode {
 	FORWARD,        // Wheels facing front 180° — normal drive
 	REVERSE,        // Wheels facing rear 180° — reversed drive
@@ -33,10 +28,8 @@ enum class DriveMode {
 XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	RCLCPP_INFO(get_logger(), "XboxController Node has been activated");
-
-	// -----------------------------------------------------------------------
+	
 	// Trigger callback — right trigger drives motors (independent of LB)
-	// -----------------------------------------------------------------------
 	triggerPub = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Drive", 10);
 
 	auto trigger_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
@@ -47,16 +40,14 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		triggerPub->publish(trigger_msg);
 	};
 
+	// Joystick / button callback — wheel steering, Pivot Home, and driving state for RVIZ
 	triggerSub = create_subscription<sensor_msgs::msg::Joy>("joy_xbox", 10, trigger_callback);
 
-	// -----------------------------------------------------------------------
-	// Joystick / button callback — wheel steering and pivot control
-	// -----------------------------------------------------------------------
-	joystickPub  = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Rotate", 10);
-	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10);
-	reverseStatePub = create_publisher<std_msgs::msg::Bool>("Reverse_State", 10);
-	inputModePub    = create_publisher<std_msgs::msg::Int32>("Input_Mode", 10);
-	driveModePub    = create_publisher<std_msgs::msg::Int32>("Drive_Mode", 10);
+	joystickPub  = create_publisher<std_msgs::msg::Float64MultiArray>("Pivot_Rotate", 10); // For wheel steering angles
+	PivotHomePub = create_publisher<std_msgs::msg::Bool>("Pivot_Home", 10); // For homing signal to pivot node
+	reverseStatePub = create_publisher<std_msgs::msg::Bool>("Reverse_State", 10); // For RVIZ to know which half of the joystick is active
+	inputModePub    = create_publisher<std_msgs::msg::Int32>("Input_Mode", 10); // For RVIZ to know the steering angles 
+	driveModePub    = create_publisher<std_msgs::msg::Int32>("Drive_Mode", 10); // For RVIZ to know the drive direction
 
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
@@ -80,22 +71,18 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		if (TurnLeftBtn  == 0) { TurnedLeft  = false; }
 		if (PivotHomeBtn == 0) { PivotHomed  = false; }
 
-		// Nothing to do while LB is not held
+		// Pivot_Rotate only valid when LB is pressed
 		if (SendValBtn != 1) { return; }
 
-		// ------------------------------------------------------------------
-		// Compute wheel-angle arrays only while LB is held, so reverseOn is
-		// never clobbered by a stick returning to centre between presses.
-		// ------------------------------------------------------------------
+		// reserveOn state is preserved until next instruction (LB == 1), for MotorCompiler to correctly act on the latest wheel orientation 
 		auto joystickArr = JoystickAlgorithm(left_joystick_y, left_joystick_x);
-		//bool reverseOnAfterJoystick = reverseOn; // snapshot before gamepad overwrites it
 		auto gamepadArr  = JoystickAlgorithm(gamepad_y, gamepad_x);
+
+		//bool reverseOnAfterJoystick = reverseOn; // snapshot before gamepad overwrites it
 		// Restore: joystick snapshot wins until a publish path decides otherwise
 		//reverseOn = reverseOnAfterJoystick;
 
-		// ------------------------------------------------------------------
-		// Determine which input is active this tick
-		// ------------------------------------------------------------------
+		// Map the various states with correspond controller value
 		bool joystickMoved = (savedArr > joystickArr[1] + 2 || savedArr < joystickArr[1] - 2);
 		bool gamepadMoved  = (savedArr > gamepadArr[1]  + 2 || savedArr < gamepadArr[1]  - 2);
 		bool sticksNeutral = (joystickArr[1] == 0.0 && gamepadArr[1] == 0.0);
@@ -103,19 +90,17 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 		InputMode mode = InputMode::NONE;
 
-		if      (joystickMoved && gamepadArr[1] == 0  && noPivotBtn) { mode = InputMode::JOYSTICK;   }
-		else if (gamepadMoved  && joystickArr[1] == 0 && noPivotBtn) { mode = InputMode::GAMEPAD;    }
+		// joystick has priority over gamepad, the && coniditon prvents conflict between sticks and buttons
+		if      (joystickMoved && gamepadArr[1] == 0 && noPivotBtn)  { mode = InputMode::JOYSTICK;   }
+		else if (gamepadMoved && joystickArr[1] == 0 && noPivotBtn)  { mode = InputMode::GAMEPAD;    }
 		else if (TurnRightBtn == 1 && sticksNeutral)                 { mode = InputMode::TURN_RIGHT; }
 		else if (TurnLeftBtn  == 1 && sticksNeutral)                 { mode = InputMode::TURN_LEFT;  }
 		else if (PivotHomeBtn == 1 && sticksNeutral && noPivotBtn)   { mode = InputMode::PIVOT_HOME; }
 
-		// ------------------------------------------------------------------
-		// Act on the resolved input mode
-		// ------------------------------------------------------------------
 		switch (mode) {
 
 			case InputMode::JOYSTICK: {
-				JoystickAlgorithm(left_joystick_y, left_joystick_x); // updates reverseOn
+				JoystickAlgorithm(left_joystick_y, left_joystick_x);
 				TurnLeftMotor  = false;
 				TurnRightMotor = false;
 				auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -126,8 +111,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			}
 
 			case InputMode::GAMEPAD: {
-				// D-pad steers the wheels — recompute reverseOn from gamepad path
-				JoystickAlgorithm(gamepad_y, gamepad_x); // updates reverseOn
+				JoystickAlgorithm(gamepad_y, gamepad_x);
 				TurnLeftMotor  = false;
 				TurnRightMotor = false;
 				auto joystick_msg = std_msgs::msg::Float64MultiArray();
@@ -138,10 +122,9 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			}
 
 			case InputMode::TURN_RIGHT: {
-				// B button — pivot all wheels for right turn (one-shot latch)
 				TurnRightMotor = true;
 				TurnLeftMotor  = false;
-				reverseOn = false;
+				reverseOn = false; // ensure reverseOn is false when pivoting
 				if (!TurnedRight) {
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
 					joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
@@ -153,10 +136,9 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			}
 
 			case InputMode::TURN_LEFT: {
-				// X button — pivot all wheels for left turn (one-shot latch)
 				TurnLeftMotor  = true;
 				TurnRightMotor = false;
-				reverseOn = false;
+				reverseOn = false; // ensure reverseOn is false when pivoting
 				if (!TurnedLeft) {
 					auto joystick_msg = std_msgs::msg::Float64MultiArray();
 					joystick_msg.data = {-151.0, 151.0, 151.0, -151.0};
@@ -168,7 +150,6 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 			}
 
 			case InputMode::PIVOT_HOME: {
-				// Menu button — send homing signal once (one-shot latch)
 				if (!PivotHomed) {
 					auto pivotHome_msg = std_msgs::msg::Bool();
 					pivotHome_msg.data = true;
@@ -184,7 +165,7 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 				break;
 		}
 
-		// Publish InputMode so viz node can colour buttons correctly
+		// Publish the state to the RVIZ node
 		auto im_msg = std_msgs::msg::Int32();
 		im_msg.data = static_cast<int>(mode);
 		inputModePub->publish(im_msg);
@@ -224,7 +205,7 @@ std::vector<double> XboxCtrlNode::JoystickAlgorithm(double x_axis, double y_axis
 		reverseOn = false;
 	}
 
-	// Publish reverseOn so viz node always knows which half the joystick is in
+	// Publish the state to the RVIZ node
 	auto rev_msg = std_msgs::msg::Bool();
 	rev_msg.data = reverseOn;
 	reverseStatePub->publish(rev_msg);
@@ -236,7 +217,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 	double mtr_forward = ScalingAlgorithm(motor, 0,  1, 1, -1);
 	double mtr_reverse = ScalingAlgorithm(motor, 0, -1, 1, -1);
 
-	// Encode the current wheel/drive state into a DriveMode for a clean switch
+	// Default to FORWARD
 	DriveMode driveMode = DriveMode::FORWARD;
 
 	if      (TurnRightMotor && !TurnLeftMotor && !reverseOn) { driveMode = DriveMode::PIVOT_RIGHT; }
@@ -244,7 +225,7 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 	else if (reverseOn && !TurnLeftMotor && !TurnRightMotor) { driveMode = DriveMode::REVERSE;     }
 	else if (!reverseOn && !TurnLeftMotor && !TurnRightMotor){ driveMode = DriveMode::FORWARD;     }
 
-	// Publish DriveMode so viz node can colour drive bar and buttons correctly
+	// Publish the state to the RVIZ node
 	auto dm_msg = std_msgs::msg::Int32();
 	dm_msg.data = static_cast<int>(driveMode);
 	driveModePub->publish(dm_msg);
@@ -252,24 +233,28 @@ std::vector<double> XboxCtrlNode::MotorCompiler(double motor) {
 	switch (driveMode) {
 
 		case DriveMode::REVERSE:
-			// Wheels face rear — invert all four motors
 			return std::vector<double>{mtr_reverse, mtr_reverse, mtr_reverse, mtr_reverse};
 		break;
 
 		case DriveMode::PIVOT_RIGHT:
-			// B-button pivot — alternate motor directions for in-place right turn
 			return std::vector<double>{mtr_reverse, mtr_forward, mtr_reverse, mtr_forward};
 		break;
 
 		case DriveMode::PIVOT_LEFT:
-			// X-button pivot — alternate motor directions for in-place left turn
 			return std::vector<double>{mtr_forward, mtr_reverse, mtr_forward, mtr_reverse};
 		break;
 		
 		case DriveMode::FORWARD: {
 			return std::vector<double>{mtr_forward, mtr_forward, mtr_forward, mtr_forward};
+		break;
+
+		default:
+			// Fail-safe default case: does nothing if none of the above are satisfied
+			return std::vector<double>{0.0, 0.0, 0.0, 0.0};
+			break;
 		}
-			
+		// Fail-safe fallback for any unexpected state.
+		return std::vector<double>{0.0, 0.0, 0.0, 0.0};
 	}
 }
 
