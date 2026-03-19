@@ -5,6 +5,7 @@ FROM osrf/ros:jazzy-desktop-full
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon* \
     python3-colcon-common-extensions \
+    python3-vcstool\
     build-essential \
     iputils-ping \
     iproute2 \
@@ -20,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     flex \
     bison \
     libncurses-dev \
+    libcurl4-openssl-dev\
     usbutils \
     ros-jazzy-joy \
     joystick \
