@@ -28,7 +28,7 @@ enum class DriveMode {
 	PIVOT_RIGHT,    // B-button pivot
 	PIVOT_LEFT      // X-button pivot
 };
-
+int count=0;
 XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	RCLCPP_INFO(get_logger(), "XboxController Node has been activated");
@@ -56,10 +56,11 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 	auto joystick_callback = [this](const sensor_msgs::msg::Joy::SharedPtr msg) -> void {
 		// to reduce the amount of messages received by the Joy Node (may be used for bandwidth reduction)
-
-		// if (++count_ % 5 != 0) {
-		//   return;
-		// }
+		count++;
+		if(count <5){
+			return;
+		}
+		count = 0;
 
 		left_joystick_x = msg->axes[0];  // X axis of the left joystick on the controller
 		left_joystick_y = msg->axes[1];  // Y axis of the left joystick on the controller
