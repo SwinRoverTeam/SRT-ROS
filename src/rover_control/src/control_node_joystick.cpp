@@ -49,7 +49,7 @@ JoystickNode::JoystickNode() : Node("Joystick")
     slider_val = msg->axes[2];                                            // The Slider on the Flight Stick; Used for opening and closing the arm
     gripper_val = ScalingAlgorithm(slider_val, 0, 1, -1, 1);       // Scaling the value from a range between 0-1 to (-1) - 1
     gripper_msg.data = {gripper_val, gripper_val};              
-    ArmGripperPub->publish(gripper_msg);
+    //ArmGripperPub->publish(gripper_msg);
 
     // Buttons used for the Arm_Joints
     SendValBtn = msg->buttons[0];                                         // Rapid fire Trigger (Red trigger); Used for sending the buttons 
