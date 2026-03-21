@@ -80,6 +80,14 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 		// Nothing to do while LB is not held
 		if (SendValBtn != 1) { return; }
 
+		bool joystickZero = (left_joystick_x == -0.0 && left_joystick_y == -0.0);
+		bool gamepadZero = (gamepad_y == 0.0 && gamepad_x == 0.0);
+		bool noBtnPressed = (TurnLeftBtn == 0 && TurnRightBtn == 0 && PivotHomeBtn == 0);
+
+		// Send nothing if no input is available (no joystick and gampad movement or no buttons have been pressed)
+		if (joystickZero && gamepadZero && noBtnPressed) {return;}
+
+
 		// ------------------------------------------------------------------
 		// Compute wheel-angle arrays only while LB is held, so reverseOn is
 		// never clobbered by a stick returning to centre between presses.
