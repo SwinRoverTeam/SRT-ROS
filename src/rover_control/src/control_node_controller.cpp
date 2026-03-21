@@ -108,11 +108,11 @@ XboxCtrlNode::XboxCtrlNode() : Node("XboxController") {
 
 		InputMode mode = InputMode::NONE;
 
-		if      (joystickMoved && gamepadArr[1] == 0  && noPivotBtn) { mode = InputMode::JOYSTICK;   }
-		else if (gamepadMoved  && joystickArr[1] == 0 && noPivotBtn) { mode = InputMode::GAMEPAD;    }
-		else if (TurnRightBtn == 1 && sticksNeutral)                 { mode = InputMode::TURN_RIGHT; }
-		else if (TurnLeftBtn  == 1 && sticksNeutral)                 { mode = InputMode::TURN_LEFT;  }
-		else if (PivotHomeBtn == 1 && sticksNeutral && noPivotBtn)   { mode = InputMode::PIVOT_HOME; }
+		if      (joystickMoved && gamepadArr[1] == 0  && noPivotBtn && PivotHomeBtn == 0) { mode = InputMode::JOYSTICK;   }
+		else if (gamepadMoved  && joystickArr[1] == 0 && noPivotBtn && PivotHomeBtn == 0) { mode = InputMode::GAMEPAD;    }
+		else if (TurnRightBtn == 1 && sticksNeutral && PivotHomeBtn == 0)                 { mode = InputMode::TURN_RIGHT; }
+		else if (TurnLeftBtn  == 1 && sticksNeutral && PivotHomeBtn == 0)                 { mode = InputMode::TURN_LEFT;  }
+		else if (PivotHomeBtn == 1 && sticksNeutral && noPivotBtn)   					  { mode = InputMode::PIVOT_HOME; }
 
 		// ------------------------------------------------------------------
 		// Act on the resolved input mode
