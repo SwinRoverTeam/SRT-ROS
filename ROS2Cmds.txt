@@ -1,0 +1,70 @@
+------------------------------------------------------------------------------------------------------------------
+    ROS2 Commands
+------------------------------------------------------------------------------------------------------------------
+ - Author: Disha Anchan
+ - Last Updated: 21/03/2026
+ - Description: This contains a list of ROS2 Commands used for the 2026 ARch Competition 
+                to make everyone's lives easier ( Skill issue for not remembering Commands :P )
+------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------
+    Rover Specific ROS2 Commands
+--------------------------------------------------
+
+[To kill the entire Rover System]
+
+    ros2 topic pub -t 1 /KillSwitch std_msgs/msg/Bool "{data: true}"
+
+    --------------------------------------------------
+        Rover Pivot Specific Commands
+    --------------------------------------------------
+
+    [To stop Pivot Movement]
+
+        ros2 topic pub -t 1 /Pivot_Stop std_msgs/msg/Bool "{data: true}"
+
+    [To Restart the Pivot ESP32]
+
+        ros2 topic pub -t 1 /Pivot_Restart std_msgs/msg/Bool "{data: true}"
+
+    --------------------------------------------------
+        Rover Arm Specific Commands
+    --------------------------------------------------
+
+    [To Stop Rover Arm Movement]
+
+        ros2 topic pub -t 1 /Arm_Stop std_msgs/msg/Bool "{data: true}" 
+
+    [To Restart the Arm ESP32]
+
+        ros2 topic pub -t 1 /Arm_Restart std_msgs/msg/Bool "{data: true}"
+
+
+
+--------------------------------------------------
+Basic ROS2 commands
+--------------------------------------------------
+
+    [To check all available nodes in the ROS2 network]
+
+        ros2 node list
+
+
+    [To check all available topics in the ROS2 network]
+
+        ros2 topic list
+
+    [To check the details of a ROS2 topic]
+
+        ros2 topic info /<topic_name>
+
+    [To check the values being published under a topic]
+
+        ros2 topic echo /<topic_name>
+
+    [To publish values under a topic]
+
+        ros2 topic pub /<topic_name> <topic_type> "<arg>"
+
+    Note: You need to understand the message structure of the topic type. 
+
