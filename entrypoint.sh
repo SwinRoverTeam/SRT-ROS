@@ -61,7 +61,6 @@ source_ros_environment() {
     set +u
     source "/opt/ros/$ROS_DISTRO/setup.bash"
     source "$WORKSPACE_DIR/install/local_setup.bash"
-    source "$WORKSPACE_DIR/agent_ws/install/local_setup.bash"
     set -u
 }
 
