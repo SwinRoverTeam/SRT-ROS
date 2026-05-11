@@ -57,9 +57,6 @@ source_ros_environment() {
     if [ ! -f "$WORKSPACE_DIR/install/local_setup.bash" ]; then
         error_exit "Workspace setup file not found: $WORKSPACE_DIR/install/local_setup.bash"
     fi
-    if [ ! -f "$WORKSPACE_DIR/agent_ws/install/local_setup.bash" ]; then
-        error_exit "Micro-ROS agent workspace not found: $WORKSPACE_DIR/agent_ws/install/local_setup.bash"
-    fi
 
     set +u
     source "/opt/ros/$ROS_DISTRO/setup.bash"
