@@ -46,7 +46,9 @@ RUN set -eo pipefail \
     && (rosdep init 2>/dev/null || true) \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src -y \
-    && colcon build --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release 
+    && colcon build --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release \
+    && source install/local_setup.bash \
+    && source /opt/ros/$ROS_DISTRO/setup.bash
 
 # Copy entrypoint script
 COPY entrypoint.sh /ros/entrypoint.sh

@@ -59,11 +59,12 @@ source_ros_environment() {
     fi
 
     set +u
-    source "$WORKSPACE_DIR/install/local_setup.bash"
+    source install/local_setup.bash
+    source "/opt/ros/$ROS_DISTRO/setup.bash"
     ros2 run micro_ros_setup create_agent_ws.sh
     ros2 run micro_ros_setup build_agent.sh
     source "/opt/ros/$ROS_DISTRO/setup.bash"
-    source "$WORKSPACE_DIR/install/local_setup.bash"
+    source install/local_setup.bash
     set -u
 }
 
