@@ -48,7 +48,8 @@ RUN set -eo pipefail \
     && rosdep install --from-paths src --ignore-src -y \
     && colcon build --parallel-workers 2 --cmake-args -DCMAKE_BUILD_TYPE=Release \
     && source install/local_setup.bash \
-    && source /opt/ros/$ROS_DISTRO/setup.bash
+    && ros2 run micro_ros_setup create_agent_ws.sh \
+    && ros2 run micro_ros_setup build_agent.sh
 
 # Copy entrypoint script
 COPY entrypoint.sh /ros/entrypoint.sh
